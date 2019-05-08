@@ -10,12 +10,14 @@ type ldb struct {
 	db *leveldb.DB
 }
 
+// NewLevelDB returns a levelDB implementation of the Store.
 func NewLevelDB(db *leveldb.DB) Store {
 	return &ldb{
 		db: db,
 	}
 }
 
+// Read implements the `Store` interface.
 func (db *ldb) Read(key string, value interface{}) error {
 	data, err := db.db.Get([]byte(key), nil)
 	if err != nil {
@@ -24,10 +26,12 @@ func (db *ldb) Read(key string, value interface{}) error {
 	return json.Unmarshal(data, value)
 }
 
+// ReadData implements the `Store` interface.
 func (db *ldb) ReadData(key string) ([]byte, error) {
 	return db.db.Get([]byte(key), nil)
 }
 
+// Write implements the `Store` interface.
 func (db *ldb) Write(key string, value interface{}) error {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -36,10 +40,12 @@ func (db *ldb) Write(key string, value interface{}) error {
 	return db.db.Put([]byte(key), data, nil)
 }
 
+// WriteData implements the `Store` interface.
 func (db *ldb) WriteData(key string, data []byte) error {
 	return db.db.Put([]byte(key), data, nil)
 }
 
+// Delete implements the `Store` interface.
 func (db *ldb) Delete(key string) error {
 	return db.db.Delete([]byte(key), nil)
 }
