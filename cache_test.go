@@ -31,7 +31,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 	Context("when reading and writing with data-expiration", func() {
 		It("should be able to store a struct with pre-defined value type", func() {
 			readAndWrite := func(key string, value testStruct) bool {
-				cache := NewMutexCache(TimeToLive)
+				cache := NewIterableCache(TimeToLive)
 				Expect(cache.Entries()).Should(Equal(0))
 
 				var newValue testStruct
@@ -54,7 +54,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 			ran := rand.New(rand.NewSource(time.Now().Unix()))
 
 			addingData := func() bool {
-				cache := NewMutexCache(TimeToLive)
+				cache := NewIterableCache(TimeToLive)
 				num := rand.Intn(128)
 				for i := 0; i < num; i++ {
 					value := randomTestStruct(ran)
@@ -71,7 +71,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 	Context("when reading and writing without data-expiration", func() {
 		It("should be able to store a struct with pre-defined value type", func() {
 			readAndWrite := func(key string, value testStruct) bool {
-				cache := NewMutexCache(0)
+				cache := NewIterableCache(0)
 				Expect(cache.Entries()).Should(Equal(0))
 
 				var newValue testStruct
@@ -94,7 +94,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 			ran := rand.New(rand.NewSource(time.Now().Unix()))
 
 			addingData := func() bool {
-				cache := NewMutexCache(0)
+				cache := NewIterableCache(0)
 				num := rand.Intn(128)
 				for i := 0; i < num; i++ {
 					value := randomTestStruct(ran)
@@ -113,7 +113,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 			ran := rand.New(rand.NewSource(time.Now().Unix()))
 
 			iterating := func() bool {
-				cache := NewMutexCache(TimeToLive)
+				cache := NewIterableCache(TimeToLive)
 
 				Expect(cache.Entries()).Should(Equal(0))
 				num := rand.Intn(128)
@@ -149,7 +149,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 
 		It("should return error when there is no next key-value pair", func() {
 			iterating := func(key string, value testStruct) bool {
-				cache := NewMutexCache(TimeToLive)
+				cache := NewIterableCache(TimeToLive)
 				Expect(cache.Write(key, value)).NotTo(HaveOccurred())
 				iter := cache.Iterator()
 				for iter.Next() {
@@ -169,7 +169,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 		It("should return ErrDataExpired", func() {
 			ran := rand.New(rand.NewSource(time.Now().Unix()))
 			value := randomTestStruct(ran)
-			cache := NewMutexCache(1)
+			cache := NewIterableCache(1)
 			Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
 
 			time.Sleep(2 * time.Second)
@@ -181,7 +181,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 	Context("when giving wrong data type of the value", func() {
 		It("should return an error", func() {
 			wrongType := func(key string, value testStruct) bool {
-				cache := NewMutexCache(TimeToLive)
+				cache := NewIterableCache(TimeToLive)
 				Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
 
 				var wrongType []byte
@@ -194,7 +194,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 	Context("when trying to store some data which is no marshalable", func() {
 		It("should fail and return an error", func() {
 			key, value := "key", make(chan struct{})
-			cache := NewMutexCache(TimeToLive)
+			cache := NewIterableCache(TimeToLive)
 			Expect(cache.Write(key, value)).To(HaveOccurred())
 		})
 	})

@@ -62,20 +62,20 @@ func (cache cache) Delete(key string) error {
 	return nil
 }
 
-// mutexCache is an in-memory implementation of the Store. After the data expires, it returns ErrDataExpired if the data is
+// iterableCache is an in-memory implementation of the Store. After the data expires, it returns ErrDataExpired if the data is
 // out of date. This store is safe for concurrent read and write.
-type mutexCache struct {
+type iterableCache struct {
 	mu         *sync.RWMutex
 	data       map[string][]byte
 	lastSeen   map[string]int64
 	timeToLive int64
 }
 
-// NewMutexCache returns a new cached Store. It is safe for concurrent reading and writing. The stored value will be
+// NewIterableCache returns a new cached Store. It is safe for concurrent reading and writing. The stored value will be
 // live with the given living time. If the `timeToLive` is less than or equal to 0, the data will not have an expiration
 // time.
-func NewMutexCache(timeToLive int64) MutexStore {
-	return mutexCache{
+func NewIterableCache(timeToLive int64) IterableStore {
+	return iterableCache{
 		mu:         new(sync.RWMutex),
 		data:       map[string][]byte{},
 		lastSeen:   map[string]int64{},
@@ -84,7 +84,7 @@ func NewMutexCache(timeToLive int64) MutexStore {
 }
 
 // Read implements the `Store` interface.
-func (cache mutexCache) Read(key string, value interface{}) error {
+func (cache iterableCache) Read(key string, value interface{}) error {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 
@@ -108,7 +108,7 @@ func (cache mutexCache) Read(key string, value interface{}) error {
 }
 
 // ReadData implements the `Store` interface.
-func (cache mutexCache) ReadData(key string) ([]byte, error) {
+func (cache iterableCache) ReadData(key string) ([]byte, error) {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 
@@ -132,7 +132,7 @@ func (cache mutexCache) ReadData(key string) ([]byte, error) {
 }
 
 // Write implements the `Store` interface.
-func (cache mutexCache) Write(key string, value interface{}) error {
+func (cache iterableCache) Write(key string, value interface{}) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
@@ -149,7 +149,7 @@ func (cache mutexCache) Write(key string, value interface{}) error {
 }
 
 // WriteData impements the `Store` interface.
-func (cache mutexCache) WriteData(key string, value []byte) error {
+func (cache iterableCache) WriteData(key string, value []byte) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
@@ -162,7 +162,7 @@ func (cache mutexCache) WriteData(key string, value []byte) error {
 }
 
 // Delete implements the `Store` interface.
-func (cache mutexCache) Delete(key string) error {
+func (cache iterableCache) Delete(key string) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
@@ -172,7 +172,7 @@ func (cache mutexCache) Delete(key string) error {
 }
 
 // Entries implements the `Store` interface.
-func (cache mutexCache) Entries() int {
+func (cache iterableCache) Entries() int {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 
@@ -180,7 +180,7 @@ func (cache mutexCache) Entries() int {
 }
 
 // Iterator implements the `Store` interface.
-func (cache mutexCache) Iterator() Iterator {
+func (cache iterableCache) Iterator() Iterator {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 

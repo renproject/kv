@@ -27,8 +27,8 @@ type Store interface {
 	Delete(key string) error
 }
 
-// MutexStore is a concurrent-safe Store which also supports iterating.
-type MutexStore interface {
+// IterableStore is a Store which supports iterating.
+type IterableStore interface {
 	Store
 
 	// Entries returns the number of data entries in the store.
