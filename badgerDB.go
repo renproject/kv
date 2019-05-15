@@ -11,7 +11,7 @@ type bdb struct {
 }
 
 // NewBadgerDB returns a badgerDB implementation of the Store.
-func NewBadgerDB(db *badger.DB) Store {
+func NewBadgerDB(db *badger.DB) IterableStore {
 	return &bdb{
 		db: db,
 	}
@@ -19,7 +19,7 @@ func NewBadgerDB(db *badger.DB) Store {
 
 // Read implements the `Store` interface.
 func (db *bdb) Read(key string, value interface{}) error {
-	return db.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
 		if err != nil {
 			return err
@@ -30,6 +30,10 @@ func (db *bdb) Read(key string, value interface{}) error {
 		}
 		return json.Unmarshal(data, value)
 	})
+	if err == badger.ErrKeyNotFound {
+		return ErrKeyNotFound
+	}
+	return err
 }
 
 // ReadData implements the `Store` interface.
@@ -42,6 +46,9 @@ func (db *bdb) ReadData(key string) (data []byte, err error) {
 		data, err = item.Value()
 		return err
 	})
+	if err == badger.ErrKeyNotFound {
+		err = ErrKeyNotFound
+	}
 	return
 }
 
@@ -69,3 +76,65 @@ func (db *bdb) Delete(key string) error {
 		return txn.Delete([]byte(key))
 	})
 }
+
+func (db *bdb) Entries() int {
+	count := 0
+	db.db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			count ++
+
+		}
+		return nil
+	})
+
+	return count
+}
+
+func (db *bdb) Iterator() Iterator {
+	tx :=db.db.NewTransaction(false)
+	iter := tx.NewIterator(badger.DefaultIteratorOptions)
+	iter.Rewind()
+	return &BadgerIterator{
+		isFirst: true,
+		tx: tx,
+		iter : iter,
+	}
+}
+
+type BadgerIterator struct {
+	isFirst bool
+	tx   *badger.Txn
+	iter *badger.Iterator
+}
+
+func (iter *BadgerIterator) Next() bool {
+	if iter.isFirst {
+		iter.isFirst = false
+	} else {
+		iter.iter.Next()
+	}
+	valid := iter.iter.Valid()
+	if !valid {
+		iter.iter.Close()
+		iter.tx.Discard()
+	}
+
+	return valid
+}
+
+func (iter *BadgerIterator) Key() (string, error) {
+	return string(iter.iter.Item().Key()), nil
+}
+
+func (iter *BadgerIterator) Value(value interface{}) error {
+	data, err := iter.iter.Item().Value()
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(data, value)
+}
+
