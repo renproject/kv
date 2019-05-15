@@ -15,8 +15,8 @@ import (
 
 var _ = Describe("BadgerDB implementation of key-value Store", func() {
 
-	initDB := func() *badger.DB{
-		Expect(exec.Command("mkdir", "-p",".tmp").Run()).NotTo(HaveOccurred())
+	initDB := func() *badger.DB {
+		Expect(exec.Command("mkdir", "-p", ".tmp").Run()).NotTo(HaveOccurred())
 		opts := badger.DefaultOptions
 		opts.Dir = "./.tmp"
 		opts.ValueDir = "./.tmp"
@@ -32,25 +32,24 @@ var _ = Describe("BadgerDB implementation of key-value Store", func() {
 
 	Context("when reading and writing with data-expiration", func() {
 		It("should be able to store a struct with pre-defined value type", func() {
-				db := initDB()
-				defer closeDB(db)
-				badgerDB := NewBadgerDB(db)
-				Expect(badgerDB.Entries()).Should(Equal(0))
+			db := initDB()
+			defer closeDB(db)
+			badgerDB := NewBadgerDB(db)
+			Expect(badgerDB.Entries()).Should(Equal(0))
 
-				value := randomTestStruct(rand.New(rand.NewSource(time.Now().Unix())))
-				key := value.A
-				var newValue testStruct
-				Expect(badgerDB.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-				Expect(badgerDB.Write(key, value)).NotTo(HaveOccurred())
+			value := randomTestStruct(rand.New(rand.NewSource(time.Now().Unix())))
+			key := value.A
+			var newValue testStruct
+			Expect(badgerDB.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
+			Expect(badgerDB.Write(key, value)).NotTo(HaveOccurred())
 
-				Expect(badgerDB.Read(key, &newValue)).NotTo(HaveOccurred())
-				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
-				Expect(badgerDB.Entries()).Should(Equal(1))
+			Expect(badgerDB.Read(key, &newValue)).NotTo(HaveOccurred())
+			Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+			Expect(badgerDB.Entries()).Should(Equal(1))
 
-				Expect(badgerDB.Delete(key)).NotTo(HaveOccurred())
-				Expect(badgerDB.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-				Expect(badgerDB.Entries()).Should(Equal(0))
-
+			Expect(badgerDB.Delete(key)).NotTo(HaveOccurred())
+			Expect(badgerDB.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
+			Expect(badgerDB.Entries()).Should(Equal(0))
 		})
 
 		It("should be able to return an iterator of the db and the number of entries in the store.", func() {
@@ -80,7 +79,7 @@ var _ = Describe("BadgerDB implementation of key-value Store", func() {
 				Expect(iter.Value(&value)).NotTo(HaveOccurred())
 				_, ok := all[value.A]
 				Expect(ok).Should(BeTrue())
-				delete(all,value.A)
+				delete(all, value.A)
 			}
 			Expect(len(all)).Should(BeZero())
 		})

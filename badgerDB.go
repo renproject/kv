@@ -84,7 +84,7 @@ func (db *bdb) Entries() int {
 		it := txn.NewIterator(opts)
 		defer it.Close()
 		for it.Rewind(); it.Valid(); it.Next() {
-			count ++
+			count++
 
 		}
 		return nil
@@ -94,20 +94,20 @@ func (db *bdb) Entries() int {
 }
 
 func (db *bdb) Iterator() Iterator {
-	tx :=db.db.NewTransaction(false)
+	tx := db.db.NewTransaction(false)
 	iter := tx.NewIterator(badger.DefaultIteratorOptions)
 	iter.Rewind()
 	return &BadgerIterator{
 		isFirst: true,
-		tx: tx,
-		iter : iter,
+		tx:      tx,
+		iter:    iter,
 	}
 }
 
 type BadgerIterator struct {
 	isFirst bool
-	tx   *badger.Txn
-	iter *badger.Iterator
+	tx      *badger.Txn
+	iter    *badger.Iterator
 }
 
 func (iter *BadgerIterator) Next() bool {
@@ -137,4 +137,3 @@ func (iter *BadgerIterator) Value(value interface{}) error {
 
 	return json.Unmarshal(data, value)
 }
-
