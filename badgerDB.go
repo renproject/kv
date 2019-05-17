@@ -77,6 +77,7 @@ func (db *bdb) Delete(key string) error {
 	})
 }
 
+// Entries implements the `IterableStore` interface.
 func (db *bdb) Entries() (int, error) {
 	count := 0
 	err := db.db.View(func(txn *badger.Txn) error {
@@ -92,6 +93,7 @@ func (db *bdb) Entries() (int, error) {
 	return count, err
 }
 
+// Iterator implements the `IterableStore` interface.
 func (db *bdb) Iterator() Iterator {
 	tx := db.db.NewTransaction(false)
 	iter := tx.NewIterator(badger.DefaultIteratorOptions)
@@ -103,12 +105,14 @@ func (db *bdb) Iterator() Iterator {
 	}
 }
 
+// BadgerIterator implements the `IterableStore` interface.
 type BadgerIterator struct {
 	isFirst bool
 	tx      *badger.Txn
 	iter    *badger.Iterator
 }
 
+// Next implements the `Iterator` interface.
 func (iter *BadgerIterator) Next() bool {
 	if iter.isFirst {
 		iter.isFirst = false
@@ -124,10 +128,12 @@ func (iter *BadgerIterator) Next() bool {
 	return valid
 }
 
+// Key implements the `Iterator` interface.
 func (iter *BadgerIterator) Key() (string, error) {
 	return string(iter.iter.Item().Key()), nil
 }
 
+// Value implements the `Iterator` interface.
 func (iter *BadgerIterator) Value(value interface{}) error {
 	data, err := iter.iter.Item().Value()
 	if err != nil {
