@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"bytes"
 	"math/rand"
 	"reflect"
 	"testing/quick"
@@ -27,12 +28,11 @@ func randomTestStruct(ran *rand.Rand) testStruct {
 	return vaule.Interface().(testStruct)
 }
 
-var _ = Describe("Cache implementation of KVStore", func() {
-	Context("when reading and writing with data-expiration", func() {
-		It("should be able to store a struct with pre-defined value type", func() {
+var _ = Describe("Cache implementation of Store", func() {
+	Context("when reading and writing", func() {
+		It("should be able read and write value without any error", func() {
 			readAndWrite := func(key string, value testStruct) bool {
-				cache := NewIterableCache(TimeToLive)
-				Expect(cache.Entries()).Should(Equal(0))
+				cache := NewCache()
 
 				var newValue testStruct
 				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
@@ -40,13 +40,60 @@ var _ = Describe("Cache implementation of KVStore", func() {
 
 				Expect(cache.Read(key, &newValue)).NotTo(HaveOccurred())
 				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
-				Expect(cache.Entries()).Should(Equal(1))
 
 				Expect(cache.Delete(key)).NotTo(HaveOccurred())
 				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-				Expect(cache.Entries()).Should(Equal(0))
+
 				return true
 			}
+
+			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+		})
+
+		It("should be able to read and write data in bytes directly", func() {
+			readWrite := func(key string, value []byte) bool {
+				cache := NewCache()
+				_, err := cache.ReadData(key)
+				Expect(err).Should(Equal(ErrKeyNotFound))
+
+				Expect(cache.WriteData(key, value)).NotTo(HaveOccurred())
+				data, err := cache.ReadData(key)
+				Expect(err).NotTo(HaveOccurred())
+				return bytes.Compare(data, value) == 0
+			}
+
+			Expect(quick.Check(readWrite, nil)).NotTo(HaveOccurred())
+		})
+	})
+})
+
+var _ = Describe("Cache implementation of IterableStore", func() {
+	Context("when reading and writing with data-expiration", func() {
+		It("should be able to store a struct with pre-defined value type", func() {
+			readAndWrite := func(key string, value testStruct) bool {
+				cache := NewIterableCache(TimeToLive)
+				entries, err := cache.Entries()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(entries).Should(Equal(0))
+
+				var newValue testStruct
+				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
+				Expect(cache.Write(key, value)).NotTo(HaveOccurred())
+
+				Expect(cache.Read(key, &newValue)).NotTo(HaveOccurred())
+				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+				entries, err = cache.Entries()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(entries).Should(Equal(1))
+
+				Expect(cache.Delete(key)).NotTo(HaveOccurred())
+				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
+				entries, err = cache.Entries()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(entries).Should(Equal(0))
+				return true
+			}
+
 			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 		})
 
@@ -61,10 +108,27 @@ var _ = Describe("Cache implementation of KVStore", func() {
 					value.A = string(i)
 					Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
 				}
-
-				return cache.Entries() == num
+				entries, err := cache.Entries()
+				Expect(err).NotTo(HaveOccurred())
+				return entries == num
 			}
+
 			Expect(quick.Check(addingData, nil)).NotTo(HaveOccurred())
+		})
+
+		It("should be able to read and write data in bytes directly", func() {
+			readWrite := func(key string, value []byte) bool {
+				cache := NewIterableCache(TimeToLive)
+				_, err := cache.ReadData(key)
+				Expect(err).Should(Equal(ErrKeyNotFound))
+
+				Expect(cache.WriteData(key, value)).NotTo(HaveOccurred())
+				data, err := cache.ReadData(key)
+				Expect(err).NotTo(HaveOccurred())
+				return bytes.Compare(data, value) == 0
+			}
+
+			Expect(quick.Check(readWrite, nil)).NotTo(HaveOccurred())
 		})
 	})
 
@@ -87,6 +151,7 @@ var _ = Describe("Cache implementation of KVStore", func() {
 				Expect(cache.Entries()).Should(Equal(0))
 				return true
 			}
+
 			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 		})
 
@@ -102,8 +167,11 @@ var _ = Describe("Cache implementation of KVStore", func() {
 					Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
 				}
 
-				return cache.Entries() == num
+				entries, err := cache.Entries()
+				Expect(err).NotTo(HaveOccurred())
+				return entries == num
 			}
+
 			Expect(quick.Check(addingData, nil)).NotTo(HaveOccurred())
 		})
 	})
@@ -115,7 +183,9 @@ var _ = Describe("Cache implementation of KVStore", func() {
 			iterating := func() bool {
 				cache := NewIterableCache(TimeToLive)
 
-				Expect(cache.Entries()).Should(Equal(0))
+				entries, err := cache.Entries()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(entries).Should(Equal(0))
 				num := rand.Intn(128)
 				allData := map[string]testStruct{}
 				for i := 0; i < num; i++ {
@@ -123,7 +193,9 @@ var _ = Describe("Cache implementation of KVStore", func() {
 					allData[value.A] = value
 					Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
 				}
-				Expect(cache.Entries()).Should(Equal(len(allData)))
+				entries, err = cache.Entries()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(entries).Should(Equal(len(allData)))
 
 				iter := cache.Iterator()
 				for iter.Next() {
@@ -141,7 +213,9 @@ var _ = Describe("Cache implementation of KVStore", func() {
 					delete(allData, key)
 				}
 
-				Expect(cache.Entries()).Should(Equal(0))
+				entries, err = cache.Entries()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(entries).Should(Equal(0))
 				return len(allData) == 0
 			}
 			Expect(quick.Check(iterating, nil)).NotTo(HaveOccurred())

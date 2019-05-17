@@ -21,6 +21,9 @@ func NewLevelDB(db *leveldb.DB) Store {
 func (db *ldb) Read(key string, value interface{}) error {
 	data, err := db.db.Get([]byte(key), nil)
 	if err != nil {
+		if err == leveldb.ErrNotFound {
+			err = ErrKeyNotFound
+		}
 		return err
 	}
 	return json.Unmarshal(data, value)
@@ -28,7 +31,12 @@ func (db *ldb) Read(key string, value interface{}) error {
 
 // ReadData implements the `Store` interface.
 func (db *ldb) ReadData(key string) ([]byte, error) {
-	return db.db.Get([]byte(key), nil)
+	value, err := db.db.Get([]byte(key), nil)
+	if err == leveldb.ErrNotFound {
+		err = ErrKeyNotFound
+	}
+
+	return value, err
 }
 
 // Write implements the `Store` interface.

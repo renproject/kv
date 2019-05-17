@@ -32,7 +32,7 @@ type IterableStore interface {
 	Store
 
 	// Entries returns the number of data entries in the store.
-	Entries() int
+	Entries() (int, error)
 
 	// Iterator returns a KVStoreIterator which can be used to iterate though the data in the store at the time the
 	// function is been called.

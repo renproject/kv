@@ -77,20 +77,19 @@ func (db *bdb) Delete(key string) error {
 	})
 }
 
-func (db *bdb) Entries() int {
+func (db *bdb) Entries() (int, error) {
 	count := 0
-	db.db.View(func(txn *badger.Txn) error {
+	err := db.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
 		defer it.Close()
 		for it.Rewind(); it.Valid(); it.Next() {
 			count++
-
 		}
 		return nil
 	})
 
-	return count
+	return count, err
 }
 
 func (db *bdb) Iterator() Iterator {

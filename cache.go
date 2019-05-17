@@ -71,9 +71,8 @@ type iterableCache struct {
 	timeToLive int64
 }
 
-// NewIterableCache returns a new cached Store. It is safe for concurrent reading and writing. The stored value will be
-// live with the given living time. If the `timeToLive` is less than or equal to 0, the data will not have an expiration
-// time.
+// NewIterableCache returns a new cached Store. It is safe for concurrent read and write. The stored value will be live
+// with the given living time. If `timeToLive` is less than or equal to zero, the data will have be always live.
 func NewIterableCache(timeToLive int64) IterableStore {
 	return iterableCache{
 		mu:         new(sync.RWMutex),
@@ -172,11 +171,11 @@ func (cache iterableCache) Delete(key string) error {
 }
 
 // Entries implements the `Store` interface.
-func (cache iterableCache) Entries() int {
+func (cache iterableCache) Entries() (int, error) {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 
-	return len(cache.data)
+	return len(cache.data), nil
 }
 
 // Iterator implements the `Store` interface.
