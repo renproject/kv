@@ -3,7 +3,6 @@ package memdb
 import (
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/renproject/kv/db"
 )
@@ -17,18 +16,14 @@ var (
 )
 
 type memdb struct {
-	mu         *sync.RWMutex
-	data       map[string][]byte
-	lastSeen   map[string]int64
-	timeToLive int64
+	mu   *sync.RWMutex
+	data map[string][]byte
 }
 
-func New(timeToLive int64) db.Iterable {
+func New() db.Iterable {
 	return &memdb{
-		mu:         new(sync.RWMutex),
-		data:       map[string][]byte{},
-		lastSeen:   map[string]int64{},
-		timeToLive: timeToLive,
+		mu:   new(sync.RWMutex),
+		data: map[string][]byte{},
 	}
 }
 
@@ -37,10 +32,6 @@ func (memdb memdb) Insert(key string, value []byte) error {
 	defer memdb.mu.Unlock()
 
 	memdb.data[key] = value
-	if memdb.timeToLive > 0 {
-		memdb.lastSeen[key] = time.Now().Unix()
-	}
-
 	return nil
 }
 
@@ -48,22 +39,10 @@ func (memdb memdb) Get(key string) ([]byte, error) {
 	memdb.mu.RLock()
 	defer memdb.mu.RUnlock()
 
-	// Check if the value is expired.
-	if memdb.timeToLive > 0 {
-		lastSeen, ok := memdb.lastSeen[key]
-		if !ok {
-			return nil, db.ErrNotFound
-		}
-		if (time.Now().Unix() - lastSeen) > memdb.timeToLive {
-			return nil, ErrExpired
-		}
-	}
-
 	val, ok := memdb.data[key]
 	if !ok {
 		return nil, db.ErrNotFound
 	}
-
 	return val, nil
 }
 
@@ -73,7 +52,6 @@ func (memdb memdb) Delete(key string) error {
 	defer memdb.mu.Unlock()
 
 	delete(memdb.data, key)
-	delete(memdb.lastSeen, key)
 	return nil
 }
 
@@ -90,10 +68,10 @@ func (memdb memdb) Iterator() db.Iterator {
 	memdb.mu.RLock()
 	defer memdb.mu.RUnlock()
 
-	return newCacheIterator(memdb.data)
+	return newIterator(memdb.data)
 }
 
-func newCacheIterator(data map[string][]byte) db.Iterator {
+func newIterator(data map[string][]byte) db.Iterator {
 	iter := &iterator{
 		index:  -1,
 		keys:   make([]string, len(data)),
@@ -105,7 +83,6 @@ func newCacheIterator(data map[string][]byte) db.Iterator {
 		iter.values[index] = value
 		index++
 	}
-
 	return iter
 }
 
@@ -115,13 +92,11 @@ type iterator struct {
 	values [][]byte
 }
 
-// Next implements the `Iterator` interface.
 func (iter *iterator) Next() bool {
 	iter.index++
 	return iter.index < len(iter.keys)
 }
 
-// Key implements the `Iterator` interface.
 func (iter *iterator) Key() (string, error) {
 	if iter.index >= len(iter.keys) {
 		return "", ErrEmptyIterator
@@ -129,11 +104,9 @@ func (iter *iterator) Key() (string, error) {
 	return iter.keys[iter.index], nil
 }
 
-// Value implements the `Iterator` interface.
 func (iter *iterator) Value() ([]byte, error) {
 	if iter.index >= len(iter.keys) {
 		return nil, ErrEmptyIterator
 	}
-
 	return iter.values[iter.index], nil
 }
