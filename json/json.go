@@ -7,41 +7,11 @@ import (
 	"github.com/renproject/kv/store"
 )
 
-type storage struct {
-	db db.DB
-}
-
-func NewStore(db db.DB) store.Store {
-	return &storage{
-		db: db,
-	}
-}
-
-func (store *storage) Insert(key string, value interface{}) error {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	return store.db.Insert(key, data)
-}
-
-func (store *storage) Get(key string, value interface{}) error {
-	data, err := store.db.Get(key)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(data, value)
-}
-
-func (store *storage) Delete(key string) error {
-	return store.db.Delete(key)
-}
-
 type iterable struct {
 	db db.Iterable
 }
 
-func NewIterable(db db.Iterable) store.Iterable {
+func New(db db.Iterable) store.Iterable {
 	return &iterable{
 		db: db,
 	}
