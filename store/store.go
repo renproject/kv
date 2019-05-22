@@ -7,6 +7,8 @@ type Store interface {
 }
 
 type Iterable interface {
+	Store
+
 	Size() (int, error)
 	Iterator() (Iterator, error)
 }
