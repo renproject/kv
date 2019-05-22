@@ -1,4 +1,4 @@
-package store
+package memdb
 
 import (
 	"encoding/json"
