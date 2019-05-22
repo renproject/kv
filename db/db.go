@@ -22,8 +22,8 @@ type DB interface {
 	Delete(key string) error
 }
 
-// IterableDB is a DB that can iterate over its key-value tuples.
-type IterableDB interface {
+// Iterable is a DB that can iterate over its key-value tuples.
+type Iterable interface {
 	DB
 
 	// Size returns the number of key-value tuples in the IterableDB.
