@@ -5,19 +5,20 @@ import (
 	"encoding/gob"
 
 	"github.com/renproject/kv/db"
+	"github.com/renproject/kv/store"
 )
 
-type Store struct {
+type storage struct {
 	db db.DB
 }
 
-func NewStore(db db.DB) *Store {
-	return &Store{
+func NewStore(db db.DB) store.Store {
+	return &storage{
 		db: db,
 	}
 }
 
-func (store *Store) Insert(key string, value interface{}) error {
+func (store *storage) Insert(key string, value interface{}) error {
 	buf := new(bytes.Buffer)
 	if err := gob.NewEncoder(buf).Encode(value); err != nil {
 		return err
@@ -25,7 +26,7 @@ func (store *Store) Insert(key string, value interface{}) error {
 	return store.db.Insert(key, buf.Bytes())
 }
 
-func (store *Store) Get(key string, value interface{}) error {
+func (store *storage) Get(key string, value interface{}) error {
 	data, err := store.db.Get(key)
 	if err != nil {
 		return err
@@ -35,21 +36,21 @@ func (store *Store) Get(key string, value interface{}) error {
 	return gob.NewDecoder(buf).Decode(value)
 }
 
-func (store *Store) Delete(key string) error {
+func (store *storage) Delete(key string) error {
 	return store.db.Delete(key)
 }
 
-type IterableStore struct {
-	db db.IterableDB
+type iterable struct {
+	db db.Iterable
 }
 
-func NewIterableStore(db db.IterableDB) *IterableStore {
-	return &IterableStore{
+func NewIterable(db db.Iterable) store.Iterable {
+	return &iterable{
 		db: db,
 	}
 }
 
-func (store *IterableStore) Insert(key string, value interface{}) error {
+func (store *iterable) Insert(key string, value interface{}) error {
 	buf := new(bytes.Buffer)
 	if err := gob.NewEncoder(buf).Encode(value); err != nil {
 		return err
@@ -57,7 +58,7 @@ func (store *IterableStore) Insert(key string, value interface{}) error {
 	return store.db.Insert(key, buf.Bytes())
 }
 
-func (store *IterableStore) Get(key string, value interface{}) error {
+func (store *iterable) Get(key string, value interface{}) error {
 	data, err := store.db.Get(key)
 	if err != nil {
 		return err
@@ -67,38 +68,38 @@ func (store *IterableStore) Get(key string, value interface{}) error {
 	return gob.NewDecoder(buf).Decode(value)
 }
 
-func (store *IterableStore) Delete(key string) error {
+func (store *iterable) Delete(key string) error {
 	return store.db.Delete(key)
 }
 
-func (store *IterableStore) Size() (int, error) {
+func (store *iterable) Size() (int, error) {
 	return store.db.Size()
 }
 
-func (store *IterableStore) Iterator() *Iterator {
+func (store *iterable) Iterator() (store.Iterator, error) {
 	iter := store.db.Iterator()
-	return NewIterator(iter)
+	return NewIterator(iter), nil
 }
 
-type Iterator struct {
+type iterator struct {
 	iter db.Iterator
 }
 
-func NewIterator(iter db.Iterator) *Iterator {
-	return &Iterator{
+func NewIterator(iter db.Iterator) store.Iterator {
+	return &iterator{
 		iter: iter,
 	}
 }
 
-func (iter *Iterator) Next() bool {
+func (iter *iterator) Next() bool {
 	return iter.iter.Next()
 }
 
-func (iter *Iterator) Key() (string, error) {
+func (iter *iterator) Key() (string, error) {
 	return iter.iter.Key()
 }
 
-func (iter *Iterator) Value(value interface{}) error {
+func (iter *iterator) Value(value interface{}) error {
 	data, err := iter.iter.Value()
 	if err != nil {
 		return err
