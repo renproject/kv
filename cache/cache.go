@@ -22,10 +22,10 @@ type cache struct {
 	lastSeen   map[string]time.Time
 }
 
-// New returns a cache that wraps an underlying iterable store. Keys that have
-// no been accessed for the specified duration will be automatically deleted
-// from the underlying iterable store. It is safe for concurrent use, as long as
-// the underlying iterable store is also safe for concurrent use.
+// New returns a cache that wraps an underlying store. Keys that have no been
+// accessed for the specified duration will be automatically deleted from the
+// underlying store. It is safe for concurrent use, as long as the underlying
+// store is also safe for concurrent use.
 func New(iterable store.Iterable, timeToLive time.Duration) store.Iterable {
 	return &cache{
 		iterable:   iterable,
