@@ -1,86 +1,50 @@
 package badgerdb
 
 import (
-	"encoding/json"
-
 	"github.com/dgraph-io/badger"
-	"github.com/renproject/kv/store"
+	"github.com/renproject/kv/db"
 )
 
 type bdb struct {
 	db *badger.DB
 }
 
-// New key-value store implementation that uses BadgerDB for persistent storage.
-// For more information, see https://github.com/dgraph-io/badger.
-func New(db *badger.DB) store.IterableStore {
+func New(db *badger.DB) db.Iterable {
 	return &bdb{
 		db: db,
 	}
 }
 
-// Read implements the `Store` interface.
-func (db *bdb) Read(key string, value interface{}) error {
-	err := db.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-		data, err := item.Value()
-		if err != nil {
-			return err
-		}
-		return json.Unmarshal(data, value)
+func (bdb *bdb) Insert(key string, value []byte) error {
+	return bdb.db.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(key), value)
 	})
-	if err == badger.ErrKeyNotFound {
-		return ErrKeyNotFound
-	}
-	return err
 }
 
-// ReadData implements the `Store` interface.
-func (db *bdb) ReadData(key string) (data []byte, err error) {
-	err = db.db.View(func(txn *badger.Txn) error {
+func (bdb *bdb) Get(key string) (value []byte, err error) {
+	err = bdb.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
 		if err != nil {
 			return err
 		}
-		data, err = item.Value()
-		return err
+		return item.Value(func(data []byte) error {
+			value = data
+			return nil
+		})
 	})
 	if err == badger.ErrKeyNotFound {
-		err = ErrKeyNotFound
+		err = db.ErrNotFound
 	}
 	return
 }
 
-// Write implements the `Store` interface.
-func (db *bdb) Write(key string, value interface{}) error {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	return db.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(key), data)
-	})
-}
-
-// WriteData implements the `Store` interface.
-func (db *bdb) WriteData(key string, data []byte) error {
-	return db.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(key), data)
-	})
-}
-
-// Delete implements the `Store` interface.
 func (db *bdb) Delete(key string) error {
 	return db.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(key))
 	})
 }
 
-// Entries implements the `IterableStore` interface.
-func (db *bdb) Entries() (int, error) {
+func (db *bdb) Size() (int, error) {
 	count := 0
 	err := db.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -95,8 +59,7 @@ func (db *bdb) Entries() (int, error) {
 	return count, err
 }
 
-// Iterator implements the `IterableStore` interface.
-func (db *bdb) Iterator() store.Iterator {
+func (db *bdb) Iterator() db.Iterator {
 	tx := db.db.NewTransaction(false)
 	iter := tx.NewIterator(badger.DefaultIteratorOptions)
 	iter.Rewind()
@@ -121,13 +84,12 @@ func (iter *BadgerIterator) Next() bool {
 	} else {
 		iter.iter.Next()
 	}
-	valid := iter.iter.Valid()
-	if !valid {
+	if valid := iter.iter.Valid(); !valid {
 		iter.iter.Close()
 		iter.tx.Discard()
+		return false
 	}
-
-	return valid
+	return true
 }
 
 // Key implements the `Iterator` interface.
@@ -136,11 +98,10 @@ func (iter *BadgerIterator) Key() (string, error) {
 }
 
 // Value implements the `Iterator` interface.
-func (iter *BadgerIterator) Value(value interface{}) error {
-	data, err := iter.iter.Item().Value()
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(data, value)
+func (iter *BadgerIterator) Value() (value []byte, err error) {
+	err = iter.iter.Item().Value(func(data []byte) error {
+		value = data
+		return nil
+	})
+	return
 }
