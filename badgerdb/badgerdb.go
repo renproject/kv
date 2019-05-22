@@ -27,10 +27,8 @@ func (bdb *bdb) Get(key string) (value []byte, err error) {
 		if err != nil {
 			return err
 		}
-		return item.Value(func(data []byte) error {
-			value = data
-			return nil
-		})
+		value, err = item.Value()
+		return err
 	})
 	if err == badger.ErrKeyNotFound {
 		err = db.ErrNotFound
@@ -98,10 +96,6 @@ func (iter *BadgerIterator) Key() (string, error) {
 }
 
 // Value implements the `Iterator` interface.
-func (iter *BadgerIterator) Value() (value []byte, err error) {
-	err = iter.iter.Item().Value(func(data []byte) error {
-		value = data
-		return nil
-	})
-	return
+func (iter *BadgerIterator) Value() ([]byte, error) {
+	return iter.iter.Item().Value()
 }
