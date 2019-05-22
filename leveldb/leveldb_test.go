@@ -10,7 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/republicprotocol/store"
+	. "github.com/renproject/kv"
 
 	"github.com/syndtr/goleveldb/leveldb"
 )

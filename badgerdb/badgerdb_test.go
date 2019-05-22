@@ -13,6 +13,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/renproject/kv"
 )
 
 var _ = Describe("BadgerDB implementation of key-value Store", func() {

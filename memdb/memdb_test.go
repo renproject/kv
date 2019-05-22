@@ -9,7 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/republicprotocol/store"
+	. "github.com/renproject/kv"
 )
 
 const TimeToLive = 30
