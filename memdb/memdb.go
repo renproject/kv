@@ -70,12 +70,12 @@ type iterableMemDB struct {
 	timeToLive int64
 }
 
-// NewIterableDB returns a key-value database that is implemented in-memory and
+// NewIterable returns a key-value database that is implemented in-memory and
 // supports iteration. This implementation is fast, but does not store data
 // on-disk. An iteraable in-memory database will drop key-value tuples after a
 // specific duration and should only be used as a cache or temporary storage. It
 // is safe for concurrent use.
-func NewIterableDB(timeToLive int64) db.IterableDB {
+func NewIterable(timeToLive int64) db.Iterable {
 	return &iterableMemDB{
 		mu:         new(sync.RWMutex),
 		data:       map[string][]byte{},
