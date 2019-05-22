@@ -1,10 +1,11 @@
 package memdb
 
 import (
-	"encoding/json"
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/renproject/kv/db"
 )
 
 var (
@@ -15,66 +16,67 @@ var (
 	ErrNoMoreItems = errors.New("no more items in iterator")
 )
 
-type cache map[string][]byte
-
-// NewCache returns a cache implementation of the Store. The returned Store is not safe for concurrent use.
-func NewCache() Store {
-	return cache{}
+type memdb struct {
+	mu *sync.RWMutex
+	db map[string][]byte
 }
 
-// Read implements the `Store` interface.
-func (cache cache) Read(key string, value interface{}) error {
-	val, ok := cache[key]
-	if !ok {
-		return ErrKeyNotFound
+// NewDB returns a key-value database that is implemented in-memory. This
+// implementation is fast, but does not store data on-disk and does not support
+// iteration. It is safe for concurrent use.
+func NewDB(cap int) db.DB {
+	return &memdb{
+		mu: new(sync.RWMutex),
+		db: make(map[string][]byte, cap),
 	}
-	return json.Unmarshal(val, value)
 }
 
-// ReadData implements the `Store` interface.
-func (cache cache) ReadData(key string) ([]byte, error) {
-	val, ok := cache[key]
+func (memdb *memdb) Insert(key string, value []byte) error {
+	memdb.mu.Lock()
+	defer memdb.mu.Unlock()
+
+	memdb.db[key] = value
+	return nil
+}
+
+func (memdb *memdb) Get(key string) ([]byte, error) {
+	memdb.mu.RLock()
+	defer memdb.mu.RUnlock()
+
+	val, ok := memdb.db[key]
 	if !ok {
-		return nil, ErrKeyNotFound
+		return nil, db.ErrNotFound
 	}
 	return val, nil
 }
 
-// Write implements the `Store` interface.
-func (cache cache) Write(key string, value interface{}) error {
-	val, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	cache[key] = val
+func (memdb *memdb) Delete(key string) error {
+	memdb.mu.Lock()
+	defer memdb.mu.Unlock()
+
+	delete(memdb.db, key)
 	return nil
 }
 
-// WriteData implements the `Store` interface.
-func (cache cache) WriteData(key string, data []byte) error {
-	cache[key] = data
-	return nil
-}
-
-// Delete implements the `Store` interface.
-func (cache cache) Delete(key string) error {
-	delete(cache, key)
-	return nil
-}
-
-// iterableCache is an in-memory implementation of the Store. After the data expires, it returns ErrDataExpired if the data is
-// out of date. This store is safe for concurrent read and write.
-type iterableCache struct {
+// NewDB returns a key-value database that is implemented in-memory. This
+// implementation is fast, but should not be used for persistent data storage,
+// and does not support iteration. An in-memory database will drop key-value
+// tuples non-deterministically and should only be used as a cache or temporary
+// storage.
+type iterableMemDB struct {
 	mu         *sync.RWMutex
 	data       map[string][]byte
 	lastSeen   map[string]int64
 	timeToLive int64
 }
 
-// NewIterableCache returns a new cached Store. It is safe for concurrent read and write. The stored value will be live
-// with the given living time. If `timeToLive` is less than or equal to zero, the data will have be always live.
-func NewIterableCache(timeToLive int64) IterableStore {
-	return iterableCache{
+// NewIterableDB returns a key-value database that is implemented in-memory and
+// supports iteration. This implementation is fast, but does not store data
+// on-disk. An iteraable in-memory database will drop key-value tuples after a
+// specific duration and should only be used as a cache or temporary storage. It
+// is safe for concurrent use.
+func NewIterableDB(timeToLive int64) db.IterableDB {
+	return &iterableMemDB{
 		mu:         new(sync.RWMutex),
 		data:       map[string][]byte{},
 		lastSeen:   map[string]int64{},
@@ -82,73 +84,7 @@ func NewIterableCache(timeToLive int64) IterableStore {
 	}
 }
 
-// Read implements the `Store` interface.
-func (cache iterableCache) Read(key string, value interface{}) error {
-	cache.mu.RLock()
-	defer cache.mu.RUnlock()
-
-	// Check if the value is expired.
-	if cache.timeToLive > 0 {
-		lastSeen, ok := cache.lastSeen[key]
-		if !ok {
-			return ErrKeyNotFound
-		}
-		if (time.Now().Unix() - lastSeen) > cache.timeToLive {
-			return ErrDataExpired
-		}
-	}
-
-	val, ok := cache.data[key]
-	if !ok {
-		return ErrKeyNotFound
-	}
-
-	return json.Unmarshal(val, value)
-}
-
-// ReadData implements the `Store` interface.
-func (cache iterableCache) ReadData(key string) ([]byte, error) {
-	cache.mu.RLock()
-	defer cache.mu.RUnlock()
-
-	// Check if the value is expired.
-	if cache.timeToLive > 0 {
-		lastSeen, ok := cache.lastSeen[key]
-		if !ok {
-			return nil, ErrKeyNotFound
-		}
-		if (time.Now().Unix() - lastSeen) > cache.timeToLive {
-			return nil, ErrDataExpired
-		}
-	}
-
-	val, ok := cache.data[key]
-	if !ok {
-		return nil, ErrKeyNotFound
-	}
-
-	return val, nil
-}
-
-// Write implements the `Store` interface.
-func (cache iterableCache) Write(key string, value interface{}) error {
-	cache.mu.Lock()
-	defer cache.mu.Unlock()
-
-	val, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	cache.data[key] = val
-	if cache.timeToLive > 0 {
-		cache.lastSeen[key] = time.Now().Unix()
-	}
-
-	return nil
-}
-
-// WriteData impements the `Store` interface.
-func (cache iterableCache) WriteData(key string, value []byte) error {
+func (cache iterableMemDB) Insert(key string, value []byte) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
@@ -160,8 +96,31 @@ func (cache iterableCache) WriteData(key string, value []byte) error {
 	return nil
 }
 
+func (cache iterableMemDB) Get(key string) ([]byte, error) {
+	cache.mu.RLock()
+	defer cache.mu.RUnlock()
+
+	// Check if the value is expired.
+	if cache.timeToLive > 0 {
+		lastSeen, ok := cache.lastSeen[key]
+		if !ok {
+			return nil, db.ErrNotFound
+		}
+		if (time.Now().Unix() - lastSeen) > cache.timeToLive {
+			return nil, ErrDataExpired
+		}
+	}
+
+	val, ok := cache.data[key]
+	if !ok {
+		return nil, db.ErrNotFound
+	}
+
+	return val, nil
+}
+
 // Delete implements the `Store` interface.
-func (cache iterableCache) Delete(key string) error {
+func (cache iterableMemDB) Delete(key string) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
@@ -170,8 +129,8 @@ func (cache iterableCache) Delete(key string) error {
 	return nil
 }
 
-// Entries implements the `Store` interface.
-func (cache iterableCache) Entries() (int, error) {
+// Size implements the `Store` interface.
+func (cache iterableMemDB) Size() (int, error) {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 
@@ -179,14 +138,14 @@ func (cache iterableCache) Entries() (int, error) {
 }
 
 // Iterator implements the `Store` interface.
-func (cache iterableCache) Iterator() Iterator {
+func (cache iterableMemDB) Iterator() db.Iterator {
 	cache.mu.RLock()
 	defer cache.mu.RUnlock()
 
 	return newCacheIterator(cache.data)
 }
 
-func newCacheIterator(data map[string][]byte) Iterator {
+func newCacheIterator(data map[string][]byte) db.Iterator {
 	iter := &cacheIterator{
 		index:  -1,
 		keys:   make([]string, len(data)),
@@ -224,10 +183,10 @@ func (iter *cacheIterator) Key() (string, error) {
 }
 
 // Value implements the `Iterator` interface.
-func (iter *cacheIterator) Value(value interface{}) error {
+func (iter *cacheIterator) Value() ([]byte, error) {
 	if iter.index >= len(iter.keys) {
-		return ErrNoMoreItems
+		return nil, ErrNoMoreItems
 	}
 
-	return json.Unmarshal(iter.values[iter.index], &value)
+	return iter.values[iter.index], nil
 }
