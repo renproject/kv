@@ -6,41 +6,46 @@ package kv
 
 import (
 	"github.com/renproject/kv/badgerdb"
+	"github.com/renproject/kv/db"
+	"github.com/renproject/kv/json"
 	"github.com/renproject/kv/leveldb"
-	"github.com/renproject/kv/store"
+	"github.com/renproject/kv/memdb"
 )
 
 var (
 	// ErrNotFound is returned when there is no value associated with a key.
-	ErrNotFound = store.ErrKeyNotFound
+	ErrNotFound = db.ErrKeyNotFound
 )
 
 var (
-	// Store defines a standard interface for reading and writing data to a
-	// key-value store.
-	Store = store.Store
+	DB = db.DB
 
-	// IterableStore defines a standard interface for a Store that can iterate
-	// over its key-value pairs.
-	IterableStore = store.IterableStore
+	IterableDB = db.IterableDB
 
 	// Iterator defines a standard interface for iterating over key-value pairs
 	// from an IterableStore.
-	Iterator = store.Iterator
+	Iterator = db.Iterator
 )
 
 var (
-	// NewBadgerDB returns a key-value store that is implemented using BadgerDB.
-	// For more information, see https://github.com/dgraph-io/badger.
+	// NewBadgerDB returns a key-value database that is implemented using
+	// BadgerDB. For more information, see https://github.com/dgraph-io/badger.
 	NewBadgerDB = badgerdb.New
 
-	// NewLevelDB returns a key-value store that is implemented using LevelDB.
-	// It is recommended that new applications use BadgerDB. For more
-	// information, see github.com/syndtr/goleveldb/leveldb.
+	// NewLevelDB returns a key-value database that is implemented using
+	// LevelDB. It is recommended that new applications use BadgerDB. For more
+	// information, see https://github.com/syndtr/goleveldb/leveldb.
 	NewLevelDB = leveldb.New
 
-	// NewMemDB returns a key-value store that is implement in-memory. This
+	// NewMemDB returns a key-value database that is implemented in-memory. This
 	// implementation is fast, but should not be used for persistent data
-	// storage.
+	// storage, and does not support iteration.
 	NewMemDB = memdb.New
+)
+
+var (
+	// NewJSON returns a key-value store that marshals and unmarshals keys using
+	// the standard Golang JSON marshalers. For more information, see
+	// https://golang.org/pkg/encoding/json.
+	NewJSON = json.NewStore
 )

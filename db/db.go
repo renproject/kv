@@ -1,4 +1,4 @@
-package store
+package db
 
 import (
 	"fmt"
@@ -7,9 +7,9 @@ import (
 // ErrNotFound is returned when there is no value associated with a key.
 var ErrNotFound = fmt.Errorf("not found")
 
-// Store key-value tuples. The key must be a string and the value must be a byte
-// slice.
-type Store interface {
+// DB for storing key-value tuples. The key must be a string and the value must
+// be a byte slice.
+type DB interface {
 	// Insert a value associated with a key. This will overrride any existing
 	// value associated with the key.
 	Insert(key string, value []byte) error
@@ -22,15 +22,15 @@ type Store interface {
 	Delete(key string) error
 }
 
-// IterableStore is a Store that can iterate over its key-value tuples.
-type IterableStore interface {
-	Store
+// IterableDB is a DB that can iterate over its key-value tuples.
+type IterableDB interface {
+	DB
 
-	// Size returns the number of key-value tuples in the IterableStore.
+	// Size returns the number of key-value tuples in the IterableDB.
 	Size() (int, error)
 
 	// Iterator returns an Iterator which can be used to iterate throught all
-	// key-value tuples in the IterableStore.
+	// key-value tuples in the IterableDB.
 	Iterator() Iterator
 }
 
