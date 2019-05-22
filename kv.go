@@ -6,6 +6,7 @@ package kv
 
 import (
 	"github.com/renproject/kv/badgerdb"
+	"github.com/renproject/kv/cache"
 	"github.com/renproject/kv/db"
 	"github.com/renproject/kv/gob"
 	"github.com/renproject/kv/json"
@@ -34,11 +35,19 @@ var (
 	// NewJSON returns a key-value store that marshals and unmarshals values
 	// using the standard Golang JSON marshalers. For more information, see
 	// https://golang.org/pkg/encoding/json.
-	NewJSON = json.NewStore
+	NewJSON = json.New
 
 	// NewGob returns a key-value store that encodes and decodes values using
 	// gob. For more information, see https://golang.org/pkg/encoding/gob.
-	NewGob = gob.NewStore
+	NewGob = gob.New
+)
+
+var (
+	// NewCache returns a cache that wraps an underlying store. Keys that have
+	// no been accessed for the specified duration will be automatically deleted
+	// from the underlying store. It is safe for concurrent use, as long as the
+	// underlying store is also safe for concurrent use.
+	NewCache = cache.New
 )
 
 var (
