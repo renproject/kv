@@ -3,46 +3,46 @@ package json
 import (
 	"encoding/json"
 
-	"github.com/renproject/kv/store"
+	"github.com/renproject/kv/db"
 )
 
 type Store struct {
-	store store.Store
+	db db.DB
 }
 
-func NewStore(store store.Store) *Store {
+func NewStore(db db.DB) *Store {
 	return &Store{
-		store: store,
+		db: db,
 	}
 }
 
-func (kv *Store) Insert(key string, value interface{}) error {
+func (store *Store) Insert(key string, value interface{}) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
-	return kv.store.Insert(key, data)
+	return store.db.Insert(key, data)
 }
 
-func (kv *Store) Get(key string, value interface{}) error {
-	data, err := kv.store.Get(key)
+func (store *Store) Get(key string, value interface{}) error {
+	data, err := store.db.Get(key)
 	if err != nil {
 		return err
 	}
 	return json.Unmarshal(data, value)
 }
 
-func (kv *Store) Delete(key string) error {
-	return kv.store.Delete(key)
+func (store *Store) Delete(key string) error {
+	return store.db.Delete(key)
 }
 
 type IterableStore struct {
-	store store.IterableStore
+	db db.IterableDB
 }
 
-func NewIterableStore(store store.IterableStore) *IterableStore {
+func NewIterableStore(db db.IterableDB) *IterableStore {
 	return &IterableStore{
-		store: store,
+		db: db,
 	}
 }
 
@@ -51,11 +51,11 @@ func (store *IterableStore) Insert(key string, value interface{}) error {
 	if err != nil {
 		return err
 	}
-	return store.store.Insert(key, data)
+	return store.db.Insert(key, data)
 }
 
 func (store *IterableStore) Get(key string, value interface{}) error {
-	data, err := store.store.Get(key)
+	data, err := store.db.Get(key)
 	if err != nil {
 		return err
 	}
@@ -63,23 +63,23 @@ func (store *IterableStore) Get(key string, value interface{}) error {
 }
 
 func (store *IterableStore) Delete(key string) error {
-	return store.store.Delete(key)
+	return store.db.Delete(key)
 }
 
 func (store *IterableStore) Size() (int, error) {
-	return store.store.Size()
+	return store.db.Size()
 }
 
 func (store *IterableStore) Iterator() *Iterator {
-	iter := store.store.Iterator()
+	iter := store.db.Iterator()
 	return NewIterator(iter)
 }
 
 type Iterator struct {
-	iter store.Iterator
+	iter db.Iterator
 }
 
-func NewIterator(iter store.Iterator) *Iterator {
+func NewIterator(iter db.Iterator) *Iterator {
 	return &Iterator{
 		iter: iter,
 	}
