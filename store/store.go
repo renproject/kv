@@ -4,50 +4,47 @@ import (
 	"fmt"
 )
 
-// ErrKeyNotFound is returned when there is no value associated with the key.
-var ErrKeyNotFound = fmt.Errorf("key not found")
+// ErrNotFound is returned when there is no value associated with a key.
+var ErrNotFound = fmt.Errorf("not found")
 
-// Store is a generic key-value store. The key must be of type string, though there are no restrictions on the type
-// of the value.
+// Store key-value tuples. The key must be a string and the value must be a byte
+// slice.
 type Store interface {
-	// Read the value associated with the given key. This function returns ErrKeyNotFound if the key cannot be found. I
-	Read(key string, value interface{}) error
+	// Insert a value associated with a key. This will overrride any existing
+	// value associated with the key.
+	Insert(key string, value []byte) error
 
-	// ReadData returns the raw bytes representation of the stored value.
-	ReadData(key string) ([]byte, error)
+	// Get the value associated with the key. If no value is associated with the
+	// key, then an error will be returned.
+	Get(key string) ([]byte, error)
 
-	// Write writes the key-value into the store.
-	Write(key string, value interface{}) error
-
-	// WriteData writes the raw bytes representation of the value into the store.
-	WriteData(key string, data []byte) error
-
-	// Delete the entry with the given key from the store. It is safe to use this function to delete a key which is not
-	// in the store.
+	// Delete the value associated with the key.
 	Delete(key string) error
 }
 
-// IterableStore is a Store which supports iterating.
+// IterableStore is a Store that can iterate over its key-value tuples.
 type IterableStore interface {
 	Store
 
-	// Entries returns the number of data entries in the store.
-	Entries() (int, error)
+	// Size returns the number of key-value tuples in the IterableStore.
+	Size() (int, error)
 
-	// Iterator returns a KVStoreIterator which can be used to iterate though the data in the store at the time the
-	// function is been called.
+	// Iterator returns an Iterator which can be used to iterate throught all
+	// key-value tuples in the IterableStore.
 	Iterator() Iterator
 }
 
 // Iterator is used to iterate through the data in the store.
 type Iterator interface {
 
-	// Next tells if we reach the end of iterator.
+	// Next will progress the iterator to the next element. If there are more
+	// elements in the iterator, then it will return true, otherwise it will
+	// return false.
 	Next() bool
 
-	// Key returns the key of the current key/value pair.
+	// Key of the current key-value tuple.
 	Key() (string, error)
 
-	// Value unmarshal the value of the current key/value pair into the given interface{}.
-	Value(value interface{}) error
+	// Value of the current key-value tuple.
+	Value() ([]byte, error)
 }
