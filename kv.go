@@ -19,7 +19,7 @@ var (
 	ErrNotFound = db.ErrNotFound
 )
 
-var (
+type (
 	// TODO: Comment!
 	Store = store.Store
 
@@ -52,7 +52,10 @@ var (
 	NewLevelDB = leveldb.New
 
 	// NewMemDB returns a key-value database that is implemented in-memory. This
-	// implementation is fast, but should not be used for persistent data
-	// storage, and does not support iteration.
+	// implementation is fast, but does not store data on-disk. A time-to-live can
+	// be used to automatically delete key-value tuples after they have been in the
+	// database for more than a specific duration. A time-to-live of zero will keep
+	// key-value tuples until they are explicitly deleted. It is safe for concurrent
+	// use.
 	NewMemDB = memdb.New
 )
