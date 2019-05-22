@@ -1,17 +1,19 @@
-package store
+package badgerdb
 
 import (
 	"encoding/json"
 
 	"github.com/dgraph-io/badger"
+	"github.com/renproject/kv/store"
 )
 
 type bdb struct {
 	db *badger.DB
 }
 
-// NewBadgerDB returns a badgerDB implementation of the Store.
-func NewBadgerDB(db *badger.DB) IterableStore {
+// New key-value store implementation that uses BadgerDB for persistent storage.
+// For more information, see https://github.com/dgraph-io/badger.
+func New(db *badger.DB) store.IterableStore {
 	return &bdb{
 		db: db,
 	}
@@ -94,7 +96,7 @@ func (db *bdb) Entries() (int, error) {
 }
 
 // Iterator implements the `IterableStore` interface.
-func (db *bdb) Iterator() Iterator {
+func (db *bdb) Iterator() store.Iterator {
 	tx := db.db.NewTransaction(false)
 	iter := tx.NewIterator(badger.DefaultIteratorOptions)
 	iter.Rewind()
