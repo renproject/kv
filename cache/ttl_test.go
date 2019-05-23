@@ -38,7 +38,7 @@ var _ = Describe("ttl store", func() {
 		It("should be able read and write value without any error", func() {
 			readAndWrite := func(key string, value testStruct) bool {
 				st := json.New(memdb.New())
-				if key == ""{
+				if key == "" {
 					return true
 				}
 				cache, err := NewTTL(st, 5*time.Second)
@@ -173,7 +173,7 @@ var _ = Describe("ttl store", func() {
 		It("should be able to store a struct with pre-defined value type", func() {
 			readAndWrite := func(key string, value testStruct) bool {
 				st := json.New(memdb.New())
-				if key == ""{
+				if key == "" {
 					return true
 				}
 				cache, err := NewTTL(st, 10*time.Millisecond)
@@ -195,7 +195,7 @@ var _ = Describe("ttl store", func() {
 			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 		})
 
-		FIt("should read all data stored in the store when initializing", func() {
+		It("should read all data stored in the store when initializing", func() {
 			readAndWrite := func(key string, value testStruct) bool {
 				if key == "" {
 					return true
