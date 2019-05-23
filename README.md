@@ -7,10 +7,10 @@
 
 A flexible and extensible library for key-value storage.
 
-- Multiple encoding/decoding formats
-- Persistent database drivers
-- In-memory database drivers
-- Time-to-live caching
-- Safe for concurrent use
+- [x] Multiple encoding/decoding formats
+- [x] Persistent database drivers
+- [x] In-memory database drivers
+- [x] Time-to-live caching
+- [x] Safe for concurrent use
 
 Built with ❤ by Ren.
