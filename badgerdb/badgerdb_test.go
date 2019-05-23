@@ -121,7 +121,7 @@ var _ = Describe("BadgerDB implementation of key-value Store", func() {
 			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 		})
 
-		It("should return error when trying to get key/value without calling next()", func() {
+		It("should return error when trying to get key/value without calling Next()", func() {
 			badgerdb := initDB()
 			defer closeDB(badgerdb)
 

@@ -47,7 +47,7 @@ var (
 	// no been accessed for the specified duration will be automatically deleted
 	// from the underlying store. It is safe for concurrent use, as long as the
 	// underlying store is also safe for concurrent use.
-	NewTTLCache = cache.New
+	NewTTLCache = cache.NewTTL
 )
 
 var (

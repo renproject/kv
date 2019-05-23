@@ -29,7 +29,7 @@ type DB interface {
 type Iterable interface {
 	DB
 
-	// Size returns the number of key-value tuples in the IterableDB.
+	// Size returns the number of key-value tuples in the Iterable DB.
 	Size() (int, error)
 
 	// Iterator returns an Iterator which can be used to iterate through all

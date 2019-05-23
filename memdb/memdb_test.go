@@ -92,7 +92,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 		})
 
-		It("should return error when trying to get key/value without calling next()", func() {
+		It("should return error when trying to get key/value without calling Next()", func() {
 			iteration := func(key string, value []byte) bool {
 				memDB := New()
 				iter := memDB.Iterator()
