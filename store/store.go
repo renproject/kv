@@ -25,7 +25,7 @@ type Iterable interface {
 
 	// Iterator returns an Iterator which can be used to iterate through all
 	// key-value tuples in the Iterable Store.
-	Iterator() Iterator
+	Iterator() (Iterator, error)
 }
 
 // Iterator is used to iterate through the data in the store.

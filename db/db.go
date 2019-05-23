@@ -7,6 +7,9 @@ import (
 // ErrNotFound is returned when there is no value associated with a key.
 var ErrNotFound = errors.New("key not found")
 
+// ErrEmptyKey is returned when key is empty.
+var ErrEmptyKey = errors.New("key cannot be empty")
+
 // ErrIndexOutOfRange is returned when the iterator index is not in a valid range.
 var ErrIndexOutOfRange = errors.New("iterator index out of range")
 

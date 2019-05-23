@@ -37,24 +37,24 @@ var _ = Describe("BadgerDB implementation of key-value Store", func() {
 			defer closeDB(badgerdb)
 
 			readAndWrite := func(key string, value []byte) bool {
-				ldb := New(badgerdb)
+				bdb := New(badgerdb)
 				if key == "" {
 					return true
 				}
 
 				// Expect not value exists in the db with the given key.
-				_, err := ldb.Get(key)
+				_, err := bdb.Get(key)
 				Expect(err).Should(Equal(db.ErrNotFound))
 
 				// Should be able to read the value after inserting.
-				Expect(ldb.Insert(key, value)).NotTo(HaveOccurred())
-				data, err := ldb.Get(key)
+				Expect(bdb.Insert(key, value)).NotTo(HaveOccurred())
+				data, err := bdb.Get(key)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(bytes.Compare(data, value)).Should(BeZero())
 
 				// Expect no value exists after deleting the value.
-				Expect(ldb.Delete(key)).NotTo(HaveOccurred())
-				_, err = ldb.Get(key)
+				Expect(bdb.Delete(key)).NotTo(HaveOccurred())
+				_, err = bdb.Get(key)
 				return err == db.ErrNotFound
 			}
 			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
@@ -65,29 +65,29 @@ var _ = Describe("BadgerDB implementation of key-value Store", func() {
 			defer closeDB(badgerdb)
 
 			iteration := func(values [][]byte) bool {
-				ldb := New(badgerdb)
+				bdb := New(badgerdb)
 
 				// Insert all values and make a map for validation.
 				allValues := map[string][]byte{}
 				for i, value := range values {
 					key := fmt.Sprintf("%v", i)
-					Expect(ldb.Insert(key, value)).NotTo(HaveOccurred())
+					Expect(bdb.Insert(key, value)).NotTo(HaveOccurred())
 					allValues[key] = value
 				}
 
 				// Expect db size to the number of values we insert.
-				size, err := ldb.Size()
+				size, err := bdb.Size()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(size).Should(Equal(len(values)))
 
 				// Expect iterator gives us all the key-value pairs we insert.
-				iter := ldb.Iterator()
+				iter := bdb.Iterator()
 				for iter.Next() {
 					key, err := iter.Key()
 					Expect(err).NotTo(HaveOccurred())
 					value, err := iter.Value()
 					Expect(err).NotTo(HaveOccurred())
-					Expect(ldb.Delete(key)).NotTo(HaveOccurred())
+					Expect(bdb.Delete(key)).NotTo(HaveOccurred())
 
 					stored, ok := allValues[key]
 					Expect(ok).Should(BeTrue())
@@ -105,8 +105,8 @@ var _ = Describe("BadgerDB implementation of key-value Store", func() {
 			defer closeDB(badgerdb)
 
 			iteration := func(key string, value []byte) bool {
-				ldb := New(badgerdb)
-				iter := ldb.Iterator()
+				bdb := New(badgerdb)
+				iter := bdb.Iterator()
 
 				for iter.Next() {
 				}
@@ -126,14 +126,26 @@ var _ = Describe("BadgerDB implementation of key-value Store", func() {
 			defer closeDB(badgerdb)
 
 			iteration := func(key string, value []byte) bool {
-				ldb := New(badgerdb)
-				iter := ldb.Iterator()
+				bdb := New(badgerdb)
+				iter := bdb.Iterator()
 
 				_, err := iter.Key()
 				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
 				_, err = iter.Value()
 				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
 				return iter.Next() == false
+			}
+
+			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+		})
+
+		It("should return ErrEmptyKey when trying to insert a value with empty key", func() {
+			badgerdb := initDB()
+			defer closeDB(badgerdb)
+
+			iteration := func(value []byte) bool {
+				bdb := New(badgerdb)
+				return bdb.Insert("", value) == db.ErrEmptyKey
 			}
 
 			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())

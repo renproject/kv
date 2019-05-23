@@ -20,6 +20,9 @@ func New(db *leveldb.DB) db.Iterable {
 
 // Insert implements the `db.Iterable` interface.
 func (ldb *ldb) Insert(key string, data []byte) error {
+	if key == "" {
+		return db.ErrEmptyKey
+	}
 	return ldb.db.Put([]byte(key), data, nil)
 }
 

@@ -22,6 +22,10 @@ func New() db.Iterable {
 
 // Insert implements the `db.Iterable` interface.
 func (memdb memdb) Insert(key string, value []byte) error {
+	if key == "" {
+		return db.ErrEmptyKey
+	}
+
 	memdb.mu.Lock()
 	defer memdb.mu.Unlock()
 

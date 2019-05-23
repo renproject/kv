@@ -1,7 +1,7 @@
 package cache_test
 
 import (
-	"bytes"
+	"fmt"
 	"math/rand"
 	"reflect"
 	"testing/quick"
@@ -9,10 +9,14 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/kv/memdb"
+	. "github.com/renproject/kv/cache"
+
+	"github.com/renproject/kv/db"
+	"github.com/renproject/kv/json"
+	"github.com/renproject/kv/memdb"
 )
 
-const TimeToLive = 30
+var Ran = rand.New(rand.NewSource(time.Now().Unix()))
 
 type testStruct struct {
 	A string
@@ -24,180 +28,95 @@ type testStruct struct {
 
 func randomTestStruct(ran *rand.Rand) testStruct {
 	t := reflect.TypeOf(testStruct{})
-	vaule, _ := quick.Value(t, ran)
+	vaule, ok := quick.Value(t, ran)
+	Expect(ok).Should(BeTrue())
 	return vaule.Interface().(testStruct)
 }
 
-var _ = Describe("Cache implementation of Store", func() {
+var _ = Describe("ttl store", func() {
 	Context("when reading and writing", func() {
 		It("should be able read and write value without any error", func() {
 			readAndWrite := func(key string, value testStruct) bool {
-				cache := NewCache()
-
-				var newValue testStruct
-				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-				Expect(cache.Write(key, value)).NotTo(HaveOccurred())
-
-				Expect(cache.Read(key, &newValue)).NotTo(HaveOccurred())
-				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
-
-				Expect(cache.Delete(key)).NotTo(HaveOccurred())
-				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-
-				return true
-			}
-
-			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
-		})
-
-		It("should be able to read and write data in bytes directly", func() {
-			readWrite := func(key string, value []byte) bool {
-				cache := NewCache()
-				_, err := cache.ReadData(key)
-				Expect(err).Should(Equal(ErrKeyNotFound))
-
-				Expect(cache.WriteData(key, value)).NotTo(HaveOccurred())
-				data, err := cache.ReadData(key)
-				Expect(err).NotTo(HaveOccurred())
-				return bytes.Compare(data, value) == 0
-			}
-
-			Expect(quick.Check(readWrite, nil)).NotTo(HaveOccurred())
-		})
-	})
-})
-
-var _ = Describe("Cache implementation of IterableStore", func() {
-	Context("when reading and writing with data-expiration", func() {
-		It("should be able to store a struct with pre-defined value type", func() {
-			readAndWrite := func(key string, value testStruct) bool {
-				cache := NewIterableCache(TimeToLive)
-				entries, err := cache.Entries()
-				Expect(err).NotTo(HaveOccurred())
-				Expect(entries).Should(Equal(0))
-
-				var newValue testStruct
-				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-				Expect(cache.Write(key, value)).NotTo(HaveOccurred())
-
-				Expect(cache.Read(key, &newValue)).NotTo(HaveOccurred())
-				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
-				entries, err = cache.Entries()
-				Expect(err).NotTo(HaveOccurred())
-				Expect(entries).Should(Equal(1))
-
-				Expect(cache.Delete(key)).NotTo(HaveOccurred())
-				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-				entries, err = cache.Entries()
-				Expect(err).NotTo(HaveOccurred())
-				Expect(entries).Should(Equal(0))
-				return true
-			}
-
-			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
-		})
-
-		It("should be able to return the number of entries in the store ", func() {
-			ran := rand.New(rand.NewSource(time.Now().Unix()))
-
-			addingData := func() bool {
-				cache := NewIterableCache(TimeToLive)
-				num := rand.Intn(128)
-				for i := 0; i < num; i++ {
-					value := randomTestStruct(ran)
-					value.A = string(i)
-					Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
+				st := json.New(memdb.New())
+				if key == ""{
+					return true
 				}
-				entries, err := cache.Entries()
+				cache, err := NewTTL(st, 5*time.Second)
 				Expect(err).NotTo(HaveOccurred())
-				return entries == num
-			}
-
-			Expect(quick.Check(addingData, nil)).NotTo(HaveOccurred())
-		})
-
-		It("should be able to read and write data in bytes directly", func() {
-			readWrite := func(key string, value []byte) bool {
-				cache := NewIterableCache(TimeToLive)
-				_, err := cache.ReadData(key)
-				Expect(err).Should(Equal(ErrKeyNotFound))
-
-				Expect(cache.WriteData(key, value)).NotTo(HaveOccurred())
-				data, err := cache.ReadData(key)
-				Expect(err).NotTo(HaveOccurred())
-				return bytes.Compare(data, value) == 0
-			}
-
-			Expect(quick.Check(readWrite, nil)).NotTo(HaveOccurred())
-		})
-	})
-
-	Context("when reading and writing without data-expiration", func() {
-		It("should be able to store a struct with pre-defined value type", func() {
-			readAndWrite := func(key string, value testStruct) bool {
-				cache := NewIterableCache(0)
-				Expect(cache.Entries()).Should(Equal(0))
 
 				var newValue testStruct
-				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-				Expect(cache.Write(key, value)).NotTo(HaveOccurred())
+				Expect(cache.Get(key, &newValue)).Should(Equal(db.ErrNotFound))
+				Expect(cache.Insert(key, value)).NotTo(HaveOccurred())
 
-				Expect(cache.Read(key, &newValue)).NotTo(HaveOccurred())
+				Expect(cache.Get(key, &newValue)).NotTo(HaveOccurred())
 				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
-				Expect(cache.Entries()).Should(Equal(1))
 
 				Expect(cache.Delete(key)).NotTo(HaveOccurred())
-				Expect(cache.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-				Expect(cache.Entries()).Should(Equal(0))
+				Expect(cache.Get(key, &newValue)).Should(Equal(db.ErrNotFound))
+
 				return true
 			}
 
 			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 		})
-
-		It("should be able to return the number of entries in the store ", func() {
-			ran := rand.New(rand.NewSource(time.Now().Unix()))
-
-			addingData := func() bool {
-				cache := NewIterableCache(0)
-				num := rand.Intn(128)
-				for i := 0; i < num; i++ {
-					value := randomTestStruct(ran)
-					value.A = string(i)
-					Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
-				}
-
-				entries, err := cache.Entries()
-				Expect(err).NotTo(HaveOccurred())
-				return entries == num
-			}
-
-			Expect(quick.Check(addingData, nil)).NotTo(HaveOccurred())
-		})
 	})
 
-	Context("when iterating the data in the store", func() {
-		It("should iterate through all the key-values in the store", func() {
-			ran := rand.New(rand.NewSource(time.Now().Unix()))
-
-			iterating := func() bool {
-				cache := NewIterableCache(TimeToLive)
-
-				entries, err := cache.Entries()
+	Context("when iterating", func() {
+		It("should be able to return the correct number of values in the store", func() {
+			iterating := func(key string, value testStruct) bool {
+				st := json.New(memdb.New())
+				cache, err := NewTTL(st, 10*time.Millisecond)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(entries).Should(Equal(0))
+
+				// Expect the initial size to be 0.
+				size, err := cache.Size()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(size).Should(Equal(0))
+
+				// Insert random number of values into the store.
 				num := rand.Intn(128)
 				allData := map[string]testStruct{}
 				for i := 0; i < num; i++ {
-					value := randomTestStruct(ran)
+					value := randomTestStruct(Ran)
+					value.A = fmt.Sprintf("%v", i)
 					allData[value.A] = value
-					Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
+					Expect(cache.Insert(value.A, value)).NotTo(HaveOccurred())
 				}
-				entries, err = cache.Entries()
-				Expect(err).NotTo(HaveOccurred())
-				Expect(entries).Should(Equal(len(allData)))
 
-				iter := cache.Iterator()
+				// Expect the size to be the number of value we inserted.
+				size, err = cache.Size()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(size).Should(Equal(num))
+
+				// Expect the size to be 0 as all values should expired.
+				time.Sleep(10 * time.Millisecond)
+				size, err = cache.Size()
+				Expect(err).NotTo(HaveOccurred())
+				return size == 0
+			}
+
+			Expect(quick.Check(iterating, nil)).NotTo(HaveOccurred())
+		})
+
+		It("should be able iterate through the store", func() {
+			iterating := func(key string, value testStruct) bool {
+				st := json.New(memdb.New())
+				cache, err := NewTTL(st, 5*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Insert random number of values into the store.
+				num := rand.Intn(128)
+				allData := map[string]testStruct{}
+				for i := 0; i < num; i++ {
+					value := randomTestStruct(Ran)
+					value.A = fmt.Sprintf("%v", i)
+					allData[value.A] = value
+					Expect(cache.Insert(value.A, value)).NotTo(HaveOccurred())
+				}
+
+				// Expect the iterator to be able to give us all values.
+				iter, err := cache.Iterator()
+				Expect(err).NotTo(HaveOccurred())
 				for iter.Next() {
 					var wrongType []byte
 					err := iter.Value(&wrongType)
@@ -213,63 +132,88 @@ var _ = Describe("Cache implementation of IterableStore", func() {
 					delete(allData, key)
 				}
 
-				entries, err = cache.Entries()
+				// Expect the size to be the number of value we inserted.
+				size, err := cache.Size()
 				Expect(err).NotTo(HaveOccurred())
-				Expect(entries).Should(Equal(0))
+				Expect(size).Should(Equal(0))
 				return len(allData) == 0
 			}
+
 			Expect(quick.Check(iterating, nil)).NotTo(HaveOccurred())
 		})
 
-		It("should return error when there is no next key-value pair", func() {
+		It("should only give us valid data when iterating", func() {
 			iterating := func(key string, value testStruct) bool {
-				cache := NewIterableCache(TimeToLive)
-				Expect(cache.Write(key, value)).NotTo(HaveOccurred())
-				iter := cache.Iterator()
-				for iter.Next() {
+				st := json.New(memdb.New())
+				cache, err := NewTTL(st, 10*time.Millisecond)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Insert random number of values into the store.
+				num := rand.Intn(128)
+				allData := map[string]testStruct{}
+				for i := 0; i < num; i++ {
+					value := randomTestStruct(Ran)
+					value.A = fmt.Sprintf("%v", i)
+					allData[value.A] = value
+					Expect(cache.Insert(value.A, value)).NotTo(HaveOccurred())
 				}
 
-				key, err := iter.Key()
-				Expect(err).To(Equal(ErrNoMoreItems))
-				var val testStruct
-				err = iter.Value(&val)
-				return err == ErrNoMoreItems
+				time.Sleep(10 * time.Millisecond)
+				iter, err := cache.Iterator()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(iter.Next()).Should(BeFalse())
+				return true
 			}
+
 			Expect(quick.Check(iterating, nil)).NotTo(HaveOccurred())
 		})
 	})
 
-	Context("when querying data which is expired", func() {
-		It("should return ErrDataExpired", func() {
-			ran := rand.New(rand.NewSource(time.Now().Unix()))
-			value := randomTestStruct(ran)
-			cache := NewIterableCache(1)
-			Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
+	Context("when reading and writing with data-expiration", func() {
+		It("should be able to store a struct with pre-defined value type", func() {
+			readAndWrite := func(key string, value testStruct) bool {
+				st := json.New(memdb.New())
+				if key == ""{
+					return true
+				}
+				cache, err := NewTTL(st, 10*time.Millisecond)
+				Expect(err).NotTo(HaveOccurred())
 
-			time.Sleep(2 * time.Second)
-			var newValue testStruct
-			Expect(cache.Read(value.A, &newValue)).Should(Equal(ErrDataExpired))
-		})
-	})
+				var newValue testStruct
+				Expect(cache.Get(key, &newValue)).Should(Equal(db.ErrNotFound))
+				Expect(cache.Insert(key, value)).NotTo(HaveOccurred())
 
-	Context("when giving wrong data type of the value", func() {
-		It("should return an error", func() {
-			wrongType := func(key string, value testStruct) bool {
-				cache := NewIterableCache(TimeToLive)
-				Expect(cache.Write(value.A, value)).NotTo(HaveOccurred())
+				Expect(cache.Get(key, &newValue)).NotTo(HaveOccurred())
+				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
 
-				var wrongType []byte
-				return cache.Read(value.A, &wrongType) != nil
+				time.Sleep(10 * time.Millisecond)
+				Expect(cache.Get(key, &newValue)).To(Equal(ErrExpired))
+
+				return true
 			}
-			Expect(quick.Check(wrongType, nil)).NotTo(HaveOccurred())
-		})
-	})
 
-	Context("when trying to store some data which is no marshalable", func() {
-		It("should fail and return an error", func() {
-			key, value := "key", make(chan struct{})
-			cache := NewIterableCache(TimeToLive)
-			Expect(cache.Write(key, value)).To(HaveOccurred())
+			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+		})
+
+		FIt("should read all data stored in the store when initializing", func() {
+			readAndWrite := func(key string, value testStruct) bool {
+				if key == "" {
+					return true
+				}
+				st := json.New(memdb.New())
+				Expect(st.Insert(key, value)).NotTo(HaveOccurred())
+
+				cache, err := NewTTL(st, 10*time.Second)
+				Expect(err).NotTo(HaveOccurred())
+
+				var newValue testStruct
+				Expect(cache.Get(key, &newValue)).NotTo(HaveOccurred())
+				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+
+				return true
+			}
+
+			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 		})
 	})
 })

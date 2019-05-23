@@ -19,9 +19,13 @@ func New(db *badger.DB) db.Iterable {
 
 // Insert implements the `db.Iterable` interface
 func (bdb *bdb) Insert(key string, value []byte) error {
-	return bdb.db.Update(func(txn *badger.Txn) error {
+	err := bdb.db.Update(func(txn *badger.Txn) error {
 		return txn.Set([]byte(key), value)
 	})
+	if err == badger.ErrEmptyKey {
+		return db.ErrEmptyKey
+	}
+	return err
 }
 
 // Get implements the `db.Iterable` interface

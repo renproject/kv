@@ -49,9 +49,9 @@ func (store *iterable) Size() (int, error) {
 }
 
 // Iterator implements the `store.Iterable` interface.
-func (store *iterable) Iterator() store.Iterator {
+func (store *iterable) Iterator() (store.Iterator, error) {
 	iter := store.db.Iterator()
-	return NewIterator(iter)
+	return NewIterator(iter), nil
 }
 
 // iterable is a implementation of `store.Iterator` which using JSON for data

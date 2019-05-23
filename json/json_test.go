@@ -135,7 +135,7 @@ var _ = Describe("JSON implementation of Store", func() {
 					Expect(size).Should(Equal(num))
 
 					// Expect the iterator to be able to give us all values.
-					iter := store.Iterator()
+					iter, err := store.Iterator()
 					Expect(err).NotTo(HaveOccurred())
 					for iter.Next() {
 						var wrongType []byte
@@ -205,9 +205,14 @@ var _ = Describe("JSON implementation of Store", func() {
 				return func(key string, value testStruct) bool {
 					store := New(iterable)
 
+					if key == ""{
+						return true
+					}
+
 					// Expect an error returned when trying to get key/value without calling Next()
-					iter := store.Iterator()
-					_, err := iter.Key()
+					iter, err := store.Iterator()
+					Expect(err).NotTo(HaveOccurred())
+					_, err = iter.Key()
 					Expect(err).Should(Equal(db.ErrIndexOutOfRange))
 					var val testStruct
 					err = iter.Value(&val)
@@ -216,7 +221,8 @@ var _ = Describe("JSON implementation of Store", func() {
 
 					// Expect an error returned when trying to get key/value when there's not next value.
 					Expect(store.Insert(key, value)).NotTo(HaveOccurred())
-					iter = store.Iterator()
+					iter, err = store.Iterator()
+					Expect(err).NotTo(HaveOccurred())
 					for iter.Next() {
 					}
 					_, err = iter.Key()

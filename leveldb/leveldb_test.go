@@ -34,6 +34,9 @@ var _ = Describe("levelDB implementation of key-value Store", func() {
 
 			readAndWrite := func(key string, value []byte) bool {
 				ldb := New(leveldb)
+				if key == ""{
+					return true
+				}
 
 				// Expect not value exists in the db with the given key.
 				_, err := ldb.Get(key)
@@ -127,6 +130,18 @@ var _ = Describe("levelDB implementation of key-value Store", func() {
 				_, err = iter.Value()
 				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
 				return iter.Next() == false
+			}
+
+			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+		})
+
+		It("should return ErrEmptyKey when trying to insert a value with empty key", func() {
+			leveldb := initDB()
+			defer closeDB(leveldb)
+
+			iteration := func(value []byte) bool {
+				ldb := New(leveldb)
+				return ldb.Insert("", value) == db.ErrEmptyKey
 			}
 
 			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())

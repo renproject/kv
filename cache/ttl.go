@@ -12,7 +12,7 @@ type ttl struct {
 	iterable   store.Iterable
 	timeToLive time.Duration
 
-	lastSeenMu *sync.RWMutex
+	lastSeenMu *sync.Mutex
 	lastSeen   map[string]time.Time
 }
 
@@ -20,14 +20,28 @@ type ttl struct {
 // accessed for the specified duration will be automatically deleted from the
 // underlying store. It is safe for concurrent use, as long as the underlying
 // store is also safe for concurrent use.
-func NewTTL(iterable store.Iterable, timeToLive time.Duration) store.Iterable {
+func NewTTL(iterable store.Iterable, timeToLive time.Duration) (store.Iterable, error) {
+	lastSeen := map[string]time.Time{}
+	now := time.Now()
+	iter, err := iterable.Iterator()
+	if err != nil {
+		return nil, err
+	}
+	for iter.Next() {
+		key, err := iter.Key()
+		if err != nil {
+			return nil, err
+		}
+		lastSeen[key] = now
+	}
+
 	return &ttl{
 		iterable:   iterable,
 		timeToLive: timeToLive,
 
-		lastSeenMu: new(sync.RWMutex),
-		lastSeen:   map[string]time.Time{},
-	}
+		lastSeenMu: new(sync.Mutex),
+		lastSeen:   lastSeen,
+	}, nil
 }
 
 // Insert a value into the underlying store. The key will have its access time
@@ -37,8 +51,8 @@ func (cache *ttl) Insert(key string, value interface{}) error {
 		return err
 	}
 
-	cache.lastSeenMu.RLock()
-	defer cache.lastSeenMu.RUnlock()
+	cache.lastSeenMu.Lock()
+	defer cache.lastSeenMu.Unlock()
 	cache.lastSeen[key] = time.Now()
 
 	return nil
@@ -47,8 +61,8 @@ func (cache *ttl) Insert(key string, value interface{}) error {
 // Get a value from the underlying store. The key will have its access time
 // updated.
 func (cache *ttl) Get(key string, value interface{}) error {
-	cache.lastSeenMu.RLock()
-	defer cache.lastSeenMu.RUnlock()
+	cache.lastSeenMu.Lock()
+	defer cache.lastSeenMu.Unlock()
 
 	lastSeen, ok := cache.lastSeen[key]
 	if !ok {
@@ -75,7 +89,22 @@ func (cache *ttl) Delete(key string) error {
 
 // Size returns the size of the underlying store.
 func (cache *ttl) Size() (int, error) {
-	return cache.iterable.Size()
+	cache.lastSeenMu.Lock()
+	defer cache.lastSeenMu.Unlock()
+
+	counter := 0
+	now := time.Now()
+	for key, lastSeen := range cache.lastSeen {
+		if now.Sub(lastSeen) > cache.timeToLive {
+			if err := cache.deleteWithoutLock(key); err != nil {
+				return 0, err
+			}
+		} else {
+			counter++
+		}
+	}
+
+	return counter, nil
 }
 
 // Iterator returns an iterator that can iterate over all key-value tuples in
@@ -86,8 +115,14 @@ func (cache *ttl) Iterator() (store.Iterator, error) {
 	defer cache.lastSeenMu.Unlock()
 
 	now := time.Now()
-	for key := range cache.lastSeen {
-		cache.lastSeen[key] = now
+	for key, lastSeen := range cache.lastSeen {
+		if now.Sub(lastSeen) > cache.timeToLive {
+			if err := cache.deleteWithoutLock(key); err != nil {
+				return nil, err
+			}
+		} else {
+			cache.lastSeen[key] = now
+		}
 	}
 
 	return cache.iterable.Iterator()
