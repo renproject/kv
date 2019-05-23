@@ -1,25 +1,18 @@
 package memdb
 
 import (
-	"errors"
 	"sync"
 
 	"github.com/renproject/kv/db"
 )
 
-var (
-	// ErrExpired is returned when the key-value tuple has expired.
-	ErrExpired = errors.New("expired")
-
-	// ErrEmptyIterator is returned when no more items left in the iterator.
-	ErrEmptyIterator = errors.New("empty iterator")
-)
-
+// memdb is a in-memory implementation of the `db.Iterable`.
 type memdb struct {
 	mu   *sync.RWMutex
 	data map[string][]byte
 }
 
+// New returns a new memdb.
 func New() db.Iterable {
 	return &memdb{
 		mu:   new(sync.RWMutex),
@@ -27,6 +20,7 @@ func New() db.Iterable {
 	}
 }
 
+// Insert implements the `db.Iterable` interface.
 func (memdb memdb) Insert(key string, value []byte) error {
 	memdb.mu.Lock()
 	defer memdb.mu.Unlock()
@@ -35,6 +29,7 @@ func (memdb memdb) Insert(key string, value []byte) error {
 	return nil
 }
 
+// Get implements the `db.Iterable` interface.
 func (memdb memdb) Get(key string) ([]byte, error) {
 	memdb.mu.RLock()
 	defer memdb.mu.RUnlock()
@@ -46,7 +41,7 @@ func (memdb memdb) Get(key string) ([]byte, error) {
 	return val, nil
 }
 
-// Delete implements the `Store` interface.
+// Delete implements the `db.Iterable` interface.
 func (memdb memdb) Delete(key string) error {
 	memdb.mu.Lock()
 	defer memdb.mu.Unlock()
@@ -55,7 +50,7 @@ func (memdb memdb) Delete(key string) error {
 	return nil
 }
 
-// Size implements the `Store` interface.
+// Size implements the `db.Iterable` interface.
 func (memdb memdb) Size() (int, error) {
 	memdb.mu.RLock()
 	defer memdb.mu.RUnlock()
@@ -63,27 +58,12 @@ func (memdb memdb) Size() (int, error) {
 	return len(memdb.data), nil
 }
 
-// Iterator implements the `Store` interface.
+// Iterator implements the `db.Iterable` interface.
 func (memdb memdb) Iterator() db.Iterator {
 	memdb.mu.RLock()
 	defer memdb.mu.RUnlock()
 
 	return newIterator(memdb.data)
-}
-
-func newIterator(data map[string][]byte) db.Iterator {
-	iter := &iterator{
-		index:  -1,
-		keys:   make([]string, len(data)),
-		values: make([][]byte, len(data)),
-	}
-	index := 0
-	for key, value := range data {
-		iter.keys[index] = key
-		iter.values[index] = value
-		index++
-	}
-	return iter
 }
 
 type iterator struct {
@@ -92,21 +72,45 @@ type iterator struct {
 	values [][]byte
 }
 
+func newIterator(data map[string][]byte) db.Iterator {
+	keys := make([]string, 0, len(data))
+	values := make([][]byte, 0, len(data))
+	for key, value := range data {
+		keys = append(keys, key)
+		values = append(values, value)
+	}
+
+	return &iterator{
+		index:  -1,
+		keys:   keys,
+		values: values,
+	}
+}
+
+// Next implements the `db.Iterator` interface.
 func (iter *iterator) Next() bool {
 	iter.index++
 	return iter.index < len(iter.keys)
 }
 
+// Key implements the `db.Iterator` interface.
 func (iter *iterator) Key() (string, error) {
+	if iter.index == -1 {
+		return "", db.ErrIndexOutOfRange
+	}
 	if iter.index >= len(iter.keys) {
-		return "", ErrEmptyIterator
+		return "", db.ErrIndexOutOfRange
 	}
 	return iter.keys[iter.index], nil
 }
 
+// Value implements the `db.Iterator` interface.
 func (iter *iterator) Value() ([]byte, error) {
+	if iter.index == -1 {
+		return nil, db.ErrIndexOutOfRange
+	}
 	if iter.index >= len(iter.keys) {
-		return nil, ErrEmptyIterator
+		return nil, db.ErrIndexOutOfRange
 	}
 	return iter.values[iter.index], nil
 }

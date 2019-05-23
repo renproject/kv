@@ -5,22 +5,26 @@ import (
 	"github.com/renproject/kv/db"
 )
 
+// bdb is a badgerDB implementation of the `db.Iterable`.
 type bdb struct {
 	db *badger.DB
 }
 
+// New returns a new `db.Iterable`.
 func New(db *badger.DB) db.Iterable {
 	return &bdb{
 		db: db,
 	}
 }
 
+// Insert implements the `db.Iterable` interface
 func (bdb *bdb) Insert(key string, value []byte) error {
 	return bdb.db.Update(func(txn *badger.Txn) error {
 		return txn.Set([]byte(key), value)
 	})
 }
 
+// Get implements the `db.Iterable` interface
 func (bdb *bdb) Get(key string) (value []byte, err error) {
 	err = bdb.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
@@ -36,12 +40,14 @@ func (bdb *bdb) Get(key string) (value []byte, err error) {
 	return
 }
 
+// Delete implements the `db.Iterable` interface
 func (db *bdb) Delete(key string) error {
 	return db.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(key))
 	})
 }
 
+// Size implements the `db.Iterable` interface
 func (db *bdb) Size() (int, error) {
 	count := 0
 	err := db.db.View(func(txn *badger.Txn) error {
@@ -57,32 +63,39 @@ func (db *bdb) Size() (int, error) {
 	return count, err
 }
 
+// Iterator implements the `db.Iterable` interface
 func (db *bdb) Iterator() db.Iterator {
 	tx := db.db.NewTransaction(false)
 	iter := tx.NewIterator(badger.DefaultIteratorOptions)
 	iter.Rewind()
-	return &BadgerIterator{
-		isFirst: true,
-		tx:      tx,
-		iter:    iter,
+	return &Iterator{
+		isFirst:  true,
+		isClosed: false,
+		tx:       tx,
+		iter:     iter,
 	}
 }
 
-// BadgerIterator implements the `IterableStore` interface.
-type BadgerIterator struct {
-	isFirst bool
-	tx      *badger.Txn
-	iter    *badger.Iterator
+// Iterator implements the `db.Iterator` interface.
+type Iterator struct {
+	isFirst  bool
+	isClosed bool
+	tx       *badger.Txn
+	iter     *badger.Iterator
 }
 
-// Next implements the `Iterator` interface.
-func (iter *BadgerIterator) Next() bool {
+// Next implements the `db.Iterator` interface.
+func (iter *Iterator) Next() bool {
+	if iter.isClosed {
+		return false
+	}
 	if iter.isFirst {
 		iter.isFirst = false
 	} else {
 		iter.iter.Next()
 	}
 	if valid := iter.iter.Valid(); !valid {
+		iter.isClosed = true
 		iter.iter.Close()
 		iter.tx.Discard()
 		return false
@@ -90,12 +103,18 @@ func (iter *BadgerIterator) Next() bool {
 	return true
 }
 
-// Key implements the `Iterator` interface.
-func (iter *BadgerIterator) Key() (string, error) {
+// Key implements the `db.Iterator` interface.
+func (iter *Iterator) Key() (string, error) {
+	if iter.isClosed || !iter.iter.Valid() {
+		return "", db.ErrIndexOutOfRange
+	}
 	return string(iter.iter.Item().Key()), nil
 }
 
-// Value implements the `Iterator` interface.
-func (iter *BadgerIterator) Value() ([]byte, error) {
+// Value implements the `db.Iterator` interface.
+func (iter *Iterator) Value() ([]byte, error) {
+	if iter.isClosed || !iter.iter.Valid() {
+		return nil, db.ErrIndexOutOfRange
+	}
 	return iter.iter.Item().Value()
 }

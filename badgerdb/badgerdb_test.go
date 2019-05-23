@@ -2,18 +2,16 @@ package badgerdb_test
 
 import (
 	"bytes"
-	"encoding/json"
-	"math/rand"
+	"fmt"
 	"os/exec"
-	"reflect"
-	"time"
-
-	"github.com/dgraph-io/badger"
-	"github.com/renproject/kv/badgerdb"
+	"testing/quick"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/renproject/kv"
+	. "github.com/renproject/kv/badgerdb"
+
+	"github.com/dgraph-io/badger"
+	"github.com/renproject/kv/db"
 )
 
 var _ = Describe("BadgerDB implementation of key-value Store", func() {
@@ -33,104 +31,112 @@ var _ = Describe("BadgerDB implementation of key-value Store", func() {
 		Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
 	}
 
-	Context("when reading and writing with data-expiration", func() {
-		It("should be able to store a struct with pre-defined value type", func() {
-			db := initDB()
-			defer closeDB(db)
-			badgerDB := badgerdb.NewBadgerDB(db)
-			entries, err := badgerDB.Entries()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).Should(Equal(0))
+	Context("when reading and writing", func() {
+		It("should be able read and write value", func() {
+			badgerdb := initDB()
+			defer closeDB(badgerdb)
 
-			value := randomTestStruct(rand.New(rand.NewSource(time.Now().Unix())))
-			key := value.A
-			var newValue testStruct
-			Expect(badgerDB.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-			Expect(badgerDB.Write(key, value)).NotTo(HaveOccurred())
+			readAndWrite := func(key string, value []byte) bool {
+				ldb := New(badgerdb)
+				if key == "" {
+					return true
+				}
 
-			Expect(badgerDB.Read(key, &newValue)).NotTo(HaveOccurred())
-			Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
-			entries, err = badgerDB.Entries()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).Should(Equal(1))
+				// Expect not value exists in the db with the given key.
+				_, err := ldb.Get(key)
+				Expect(err).Should(Equal(db.ErrNotFound))
 
-			Expect(badgerDB.Delete(key)).NotTo(HaveOccurred())
-			Expect(badgerDB.Read(key, &newValue)).Should(Equal(ErrKeyNotFound))
-			entries, err = badgerDB.Entries()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).Should(Equal(0))
-		})
-
-		It("should be able to return an iterator of the db and the number of entries in the store.", func() {
-			// Init the badgerDB
-			db := initDB()
-			defer closeDB(db)
-			badgerDB := NewBadgerDB(db)
-			ran := rand.New(rand.NewSource(time.Now().Unix()))
-
-			// Write random number of values into the DB
-			num := rand.Intn(128)
-			all := map[string]testStruct{}
-			for i := 0; i < num; i++ {
-				value := randomTestStruct(ran)
-				value.A = string(i)
-				all[value.A] = value
-				Expect(badgerDB.Write(value.A, value)).NotTo(HaveOccurred())
-			}
-
-			// Expect the DB has the right number of entries.
-			entries, err := badgerDB.Entries()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).Should(Equal(num))
-
-			// Expect the iterator gives us all the values we entered
-			iter := badgerDB.Iterator()
-			for iter.Next() {
-				var value testStruct
-				Expect(iter.Value(&value)).NotTo(HaveOccurred())
-				stored, ok := all[value.A]
-				Expect(ok).Should(BeTrue())
-				key, err := iter.Key()
+				// Should be able to read the value after inserting.
+				Expect(ldb.Insert(key, value)).NotTo(HaveOccurred())
+				data, err := ldb.Get(key)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(key).Should(Equal(stored.A))
-				delete(all, value.A)
+				Expect(bytes.Compare(data, value)).Should(BeZero())
+
+				// Expect no value exists after deleting the value.
+				Expect(ldb.Delete(key)).NotTo(HaveOccurred())
+				_, err = ldb.Get(key)
+				return err == db.ErrNotFound
 			}
-			Expect(len(all)).Should(BeZero())
+			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 		})
 
-		It("should be able to read and write data in bytes directly", func() {
-			// Init the badgerDB
-			db := initDB()
-			defer closeDB(db)
-			badgerDB := NewBadgerDB(db)
-			ran := rand.New(rand.NewSource(time.Now().Unix()))
+		It("should be able to iterable through the db using the iterator", func() {
+			badgerdb := initDB()
+			defer closeDB(badgerdb)
 
-			randomStruct := randomTestStruct(ran)
-			key := randomStruct.A
-			value, err := json.Marshal(randomStruct)
-			Expect(err).NotTo(HaveOccurred())
+			iteration := func(values [][]byte) bool {
+				ldb := New(badgerdb)
 
-			_, err = badgerDB.ReadData(key)
-			Expect(err).Should(Equal(ErrKeyNotFound))
+				// Insert all values and make a map for validation.
+				allValues := map[string][]byte{}
+				for i, value := range values {
+					key := fmt.Sprintf("%v", i)
+					Expect(ldb.Insert(key, value)).NotTo(HaveOccurred())
+					allValues[key] = value
+				}
 
-			Expect(badgerDB.WriteData(key, value)).NotTo(HaveOccurred())
-			entries, err := badgerDB.Entries()
-			Expect(entries).Should(Equal(1))
-			stored, err := badgerDB.ReadData(key)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(bytes.Compare(stored, value)).Should(BeZero())
+				// Expect db size to the number of values we insert.
+				size, err := ldb.Size()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(size).Should(Equal(len(values)))
+
+				// Expect iterator gives us all the key-value pairs we insert.
+				iter := ldb.Iterator()
+				for iter.Next() {
+					key, err := iter.Key()
+					Expect(err).NotTo(HaveOccurred())
+					value, err := iter.Value()
+					Expect(err).NotTo(HaveOccurred())
+					Expect(ldb.Delete(key)).NotTo(HaveOccurred())
+
+					stored, ok := allValues[key]
+					Expect(ok).Should(BeTrue())
+					Expect(bytes.Compare(value, stored)).Should(BeZero())
+					delete(allValues, key)
+				}
+				return len(allValues) == 0
+			}
+
+			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 		})
-	})
 
-	Context("some edge cases", func() {
-		It("should return a iter which works looping through a db having zero items", func() {
-			// Init the badgerDB
-			db := initDB()
-			defer closeDB(db)
-			badgerDB := NewBadgerDB(db)
+		It("should return error when trying to get key/value when the iterator doesn't have next value", func() {
+			badgerdb := initDB()
+			defer closeDB(badgerdb)
 
-			iter := badgerDB.Iterator()
-			Expect(iter.Next()).Should(BeFalse())
+			iteration := func(key string, value []byte) bool {
+				ldb := New(badgerdb)
+				iter := ldb.Iterator()
+
+				for iter.Next() {
+				}
+
+				_, err := iter.Key()
+				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+				_, err = iter.Value()
+				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+				return iter.Next() == false
+			}
+
+			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+		})
+
+		It("should return error when trying to get key/value without calling next()", func() {
+			badgerdb := initDB()
+			defer closeDB(badgerdb)
+
+			iteration := func(key string, value []byte) bool {
+				ldb := New(badgerdb)
+				iter := ldb.Iterator()
+
+				_, err := iter.Key()
+				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+				_, err = iter.Value()
+				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+				return iter.Next() == false
+			}
+
+			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 		})
 	})
 })
