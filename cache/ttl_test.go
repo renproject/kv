@@ -37,11 +37,10 @@ var _ = Describe("ttl store", func() {
 	Context("when reading and writing", func() {
 		It("should be able read and write value without any error", func() {
 			readAndWrite := func(key string, value testStruct) bool {
-				st := json.New(memdb.New())
 				if key == "" {
 					return true
 				}
-				cache, err := NewTTL(st, 10*time.Second)
+				cache, err := NewTTL(json.New(memdb.New()), time.Second)
 				Expect(err).NotTo(HaveOccurred())
 
 				var newValue testStruct
@@ -64,8 +63,7 @@ var _ = Describe("ttl store", func() {
 	Context("when iterating", func() {
 		It("should be able to return the correct number of values in the store", func() {
 			iterating := func(key string, value testStruct) bool {
-				st := json.New(memdb.New())
-				cache, err := NewTTL(st, 100*time.Millisecond)
+				cache, err := NewTTL(json.New(memdb.New()), 100*time.Millisecond)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Expect the initial size to be 0.
@@ -100,8 +98,7 @@ var _ = Describe("ttl store", func() {
 
 		It("should be able iterate through the store", func() {
 			iterating := func(key string, value testStruct) bool {
-				st := json.New(memdb.New())
-				cache, err := NewTTL(st, 10*time.Second)
+				cache, err := NewTTL(json.New(memdb.New()), time.Second)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Insert random number of values into the store.
@@ -144,8 +141,7 @@ var _ = Describe("ttl store", func() {
 
 		It("should only give us valid data when iterating", func() {
 			iterating := func(key string, value testStruct) bool {
-				st := json.New(memdb.New())
-				cache, err := NewTTL(st, 100*time.Millisecond)
+				cache, err := NewTTL(json.New(memdb.New()), 100*time.Millisecond)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Insert random number of values into the store.
@@ -172,11 +168,11 @@ var _ = Describe("ttl store", func() {
 	Context("when reading and writing with data-expiration", func() {
 		It("should be able to store a struct with pre-defined value type", func() {
 			readAndWrite := func(key string, value testStruct) bool {
-				st := json.New(memdb.New())
 				if key == "" {
 					return true
 				}
-				cache, err := NewTTL(st, 10*time.Millisecond)
+
+				cache, err := NewTTL(json.New(memdb.New()), 100*time.Millisecond)
 				Expect(err).NotTo(HaveOccurred())
 
 				var newValue testStruct
@@ -186,7 +182,7 @@ var _ = Describe("ttl store", func() {
 				Expect(cache.Get(key, &newValue)).NotTo(HaveOccurred())
 				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
 
-				time.Sleep(10 * time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 				Expect(cache.Get(key, &newValue)).To(Equal(ErrExpired))
 
 				return true
@@ -200,10 +196,10 @@ var _ = Describe("ttl store", func() {
 				if key == "" {
 					return true
 				}
-				st := json.New(memdb.New())
-				Expect(st.Insert(key, value)).NotTo(HaveOccurred())
+				store := json.New(memdb.New())
+				Expect(store.Insert(key, value)).NotTo(HaveOccurred())
 
-				cache, err := NewTTL(st, 10*time.Second)
+				cache, err := NewTTL(store, 10*time.Second)
 				Expect(err).NotTo(HaveOccurred())
 
 				var newValue testStruct
