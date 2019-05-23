@@ -41,7 +41,7 @@ var _ = Describe("ttl store", func() {
 				if key == "" {
 					return true
 				}
-				cache, err := NewTTL(st, 5*time.Second)
+				cache, err := NewTTL(st, 10*time.Second)
 				Expect(err).NotTo(HaveOccurred())
 
 				var newValue testStruct
@@ -65,7 +65,7 @@ var _ = Describe("ttl store", func() {
 		It("should be able to return the correct number of values in the store", func() {
 			iterating := func(key string, value testStruct) bool {
 				st := json.New(memdb.New())
-				cache, err := NewTTL(st, 10*time.Millisecond)
+				cache, err := NewTTL(st, 100*time.Millisecond)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Expect the initial size to be 0.
@@ -89,7 +89,7 @@ var _ = Describe("ttl store", func() {
 				Expect(size).Should(Equal(num))
 
 				// Expect the size to be 0 as all values should expired.
-				time.Sleep(10 * time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 				size, err = cache.Size()
 				Expect(err).NotTo(HaveOccurred())
 				return size == 0
@@ -101,7 +101,7 @@ var _ = Describe("ttl store", func() {
 		It("should be able iterate through the store", func() {
 			iterating := func(key string, value testStruct) bool {
 				st := json.New(memdb.New())
-				cache, err := NewTTL(st, 5*time.Second)
+				cache, err := NewTTL(st, 10*time.Second)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Insert random number of values into the store.
@@ -145,7 +145,7 @@ var _ = Describe("ttl store", func() {
 		It("should only give us valid data when iterating", func() {
 			iterating := func(key string, value testStruct) bool {
 				st := json.New(memdb.New())
-				cache, err := NewTTL(st, 10*time.Millisecond)
+				cache, err := NewTTL(st, 100*time.Millisecond)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Insert random number of values into the store.
@@ -158,7 +158,7 @@ var _ = Describe("ttl store", func() {
 					Expect(cache.Insert(value.A, value)).NotTo(HaveOccurred())
 				}
 
-				time.Sleep(10 * time.Millisecond)
+				time.Sleep(100 * time.Millisecond)
 				iter, err := cache.Iterator()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(iter.Next()).Should(BeFalse())
