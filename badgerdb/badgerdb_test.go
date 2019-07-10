@@ -6,19 +6,19 @@ import (
 	"os/exec"
 	"testing/quick"
 
+	"github.com/dgraph-io/badger"
+	"github.com/renproject/kv/db"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/kv/badgerdb"
-
-	"github.com/dgraph-io/badger"
-	"github.com/renproject/kv/db"
 )
 
 var _ = Describe("BadgerDB implementation of key-value Store", func() {
 
 	initDB := func() *badger.DB {
 		Expect(exec.Command("mkdir", "-p", ".badgerdb").Run()).NotTo(HaveOccurred())
-		opts := badger.DefaultOptions
+		opts := badger.DefaultOptions("./.badgerdb")
 		opts.Dir = "./.badgerdb"
 		opts.ValueDir = "./.badgerdb"
 		db, err := badger.Open(opts)

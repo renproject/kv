@@ -29,14 +29,17 @@ func (bdb *bdb) Insert(key string, value []byte) error {
 }
 
 // Get implements the `db.Iterable` interface
-func (bdb *bdb) Get(key string) (value []byte, err error) {
+func (bdb *bdb) Get(key string) (ret []byte, err error) {
 	err = bdb.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
 		if err != nil {
 			return err
 		}
-		value, err = item.Value()
-		return err
+		return item.Value(func(val []byte) error {
+			ret = make([]byte, len(val))
+			copy(ret, val)
+			return nil
+		})
 	})
 	if err == badger.ErrKeyNotFound {
 		err = db.ErrNotFound
@@ -116,9 +119,15 @@ func (iter *Iterator) Key() (string, error) {
 }
 
 // Value implements the `db.Iterator` interface.
-func (iter *Iterator) Value() ([]byte, error) {
+func (iter *Iterator) Value() (ret []byte, err error) {
 	if iter.isClosed || !iter.iter.Valid() {
-		return nil, db.ErrIndexOutOfRange
+		err = db.ErrIndexOutOfRange
+		return
 	}
-	return iter.iter.Item().Value()
+	err = iter.iter.Item().Value(func(val []byte) error {
+		ret = make([]byte, len(val))
+		copy(ret, val)
+		return nil
+	})
+	return
 }
