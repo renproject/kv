@@ -8,16 +8,14 @@ import (
 	"testing/quick"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/renproject/kv/json"
-
 	"github.com/dgraph-io/badger"
 	"github.com/renproject/kv/badgerdb"
 	"github.com/renproject/kv/db"
-	levelDB "github.com/renproject/kv/leveldb"
 	"github.com/renproject/kv/memdb"
-	"github.com/syndtr/goleveldb/leveldb"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/renproject/kv/json"
 )
 
 var Ran = rand.New(rand.NewSource(time.Now().Unix()))
@@ -39,15 +37,9 @@ func randomTestStruct(ran *rand.Rand) testStruct {
 
 var _ = Describe("JSON implementation of Store", func() {
 
-	initLdb := func() *leveldb.DB {
-		db, err := leveldb.OpenFile("./.leveldb", nil)
-		Expect(err).NotTo(HaveOccurred())
-		return db
-	}
-
 	initBadgerDB := func() *badger.DB {
 		Expect(exec.Command("mkdir", "-p", ".badgerdb").Run()).NotTo(HaveOccurred())
-		opts := badger.DefaultOptions
+		opts := badger.DefaultOptions("./.badgerdb")
 		opts.Dir = "./.badgerdb"
 		opts.ValueDir = "./.badgerdb"
 		db, err := badger.Open(opts)
@@ -56,17 +48,12 @@ var _ = Describe("JSON implementation of Store", func() {
 	}
 
 	initDBs := func() ([]db.Iterable, func()) {
-		dbs := make([]db.Iterable, 3)
+		dbs := make([]db.Iterable, 2)
 		dbs[0] = memdb.New()
-		ldb := initLdb()
-		dbs[1] = levelDB.New(ldb)
 		bdb := initBadgerDB()
-		dbs[2] = badgerdb.New(bdb)
+		dbs[1] = badgerdb.New(bdb)
 
 		return dbs, func() {
-			Expect(ldb.Close()).NotTo(HaveOccurred())
-			Expect(exec.Command("rm", "-rf", "./.leveldb").Run()).NotTo(HaveOccurred())
-
 			Expect(bdb.Close()).NotTo(HaveOccurred())
 			Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
 		}
@@ -205,7 +192,7 @@ var _ = Describe("JSON implementation of Store", func() {
 				return func(key string, value testStruct) bool {
 					store := New(iterable)
 
-					if key == ""{
+					if key == "" {
 						return true
 					}
 

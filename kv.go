@@ -1,7 +1,6 @@
 // Package kv defines a standard interface for key-value stores and key-value
-// iterators. It provides persistent implementations using BadgerDB and LevelDB.
-// It provides non-persistent implementations using a concurrent-safe in-memory
-// map.
+// iterators. It provides persistent implementations using BadgerDB. It provides
+// non-persistent implementations using a concurrent-safe in-memory map.
 package kv
 
 import (
@@ -10,7 +9,6 @@ import (
 	"github.com/renproject/kv/db"
 	"github.com/renproject/kv/gob"
 	"github.com/renproject/kv/json"
-	"github.com/renproject/kv/leveldb"
 	"github.com/renproject/kv/memdb"
 	"github.com/renproject/kv/store"
 )
@@ -54,11 +52,6 @@ var (
 	// NewBadgerDB returns a key-value database that is implemented using
 	// BadgerDB. For more information, see https://github.com/dgraph-io/badger.
 	NewBadgerDB = badgerdb.New
-
-	// NewLevelDB returns a key-value database that is implemented using
-	// LevelDB. It is recommended that new applications use BadgerDB. For more
-	// information, see https://github.com/syndtr/goleveldb/leveldb.
-	NewLevelDB = leveldb.New
 
 	// NewMemDB returns a key-value database that is implemented in-memory. This
 	// implementation is fast, but does not store data on-disk. A time-to-live can

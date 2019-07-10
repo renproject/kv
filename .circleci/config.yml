@@ -27,7 +27,6 @@ jobs:
               badgerdb/coverprofile.out \
               cache/coverprofile.out    \
               json/coverprofile.out     \
-              leveldb/coverprofile.out  \
               memdb/coverprofile.out > coverprofile.out
             /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
       - save_cache:
