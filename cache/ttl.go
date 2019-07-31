@@ -66,7 +66,7 @@ func (cache *ttl) Get(key string, value interface{}) error {
 
 	lastSeen, ok := cache.lastSeen[key]
 	if !ok {
-		return db.ErrNotFound
+		return db.ErrKeyNotFound
 	}
 	if time.Now().After(lastSeen.Add(cache.timeToLive)) {
 		if err := cache.deleteWithoutLock(key); err != nil {

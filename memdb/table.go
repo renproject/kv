@@ -6,16 +6,16 @@ import (
 	"github.com/renproject/kv/db"
 )
 
-// memTable is a in-memory implementation of the `db.Table`.
-type memTable struct {
+// table is a in-memory implementation of the `db.Table`.
+type table struct {
 	mu    *sync.RWMutex
 	data  map[string][]byte
 	codec db.Codec
 }
 
-// New returns a new memTable.
+// New returns a new table.
 func NewTable(codec db.Codec) db.Table {
-	return &memTable{
+	return &table{
 		mu:    new(sync.RWMutex),
 		data:  map[string][]byte{},
 		codec: codec,
@@ -23,7 +23,7 @@ func NewTable(codec db.Codec) db.Table {
 }
 
 // Insert implements the `db.Table` interface.
-func (table *memTable) Insert(key string, value interface{}) error {
+func (table *table) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
@@ -40,7 +40,7 @@ func (table *memTable) Insert(key string, value interface{}) error {
 }
 
 // Get implements the `db.Table` interface.
-func (table *memTable) Get(key string, value interface{}) error {
+func (table *table) Get(key string, value interface{}) error {
 	table.mu.RLock()
 	defer table.mu.RUnlock()
 
@@ -49,13 +49,13 @@ func (table *memTable) Get(key string, value interface{}) error {
 	}
 	val, ok := table.data[key]
 	if !ok {
-		return db.ErrNotFound
+		return db.ErrKeyNotFound
 	}
 	return table.codec.Decode(val, value)
 }
 
 // Delete implements the `db.Table` interface.
-func (table *memTable) Delete(key string) error {
+func (table *table) Delete(key string) error {
 	table.mu.Lock()
 	defer table.mu.Unlock()
 
@@ -64,7 +64,7 @@ func (table *memTable) Delete(key string) error {
 }
 
 // Size implements the `db.Table` interface.
-func (table *memTable) Size() (int, error) {
+func (table *table) Size() (int, error) {
 	table.mu.RLock()
 	defer table.mu.RUnlock()
 
@@ -72,7 +72,7 @@ func (table *memTable) Size() (int, error) {
 }
 
 // Iterator implements the `db.Table` interface.
-func (table *memTable) Iterator() (db.Iterator, error) {
+func (table *table) Iterator() (db.Iterator, error) {
 	table.mu.RLock()
 	defer table.mu.RUnlock()
 

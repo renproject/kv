@@ -1,133 +1,93 @@
 package badgerdb
 
 import (
+	"sync"
+
 	"github.com/dgraph-io/badger"
 	"github.com/renproject/kv/db"
 )
 
 // bdb is a badgerDB implementation of the `db.Iterable`.
-type bdb struct {
-	db *badger.DB
+type badgerDB struct {
+	mu     *sync.Mutex
+	db     *badger.DB
+	tables map[string]db.Table
 }
 
 // New returns a new `db.Iterable`.
-func New(db *badger.DB) db.Iterable {
-	return &bdb{
-		db: db,
+func New(bdb *badger.DB) db.DB {
+	return &badgerDB{
+		mu:     new(sync.Mutex),
+		db:     bdb,
+		tables: map[string]db.Table{},
 	}
 }
 
-// Insert implements the `db.Iterable` interface
-func (bdb *bdb) Insert(key string, value []byte) error {
-	err := bdb.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(key), value)
-	})
-	if err == badger.ErrEmptyKey {
-		return db.ErrEmptyKey
+func (bdb *badgerDB) NewTable(name string, codec db.Codec) (db.Table, error) {
+	bdb.mu.Lock()
+	defer bdb.mu.Unlock()
+
+	_, ok := bdb.tables[name]
+	if ok {
+		return nil, db.ErrTableAlreadyExists
 	}
-	return err
+	bdb.tables[name] = NewTable(name, bdb.db, codec)
+	return bdb.tables[name], nil
 }
 
-// Get implements the `db.Iterable` interface
-func (bdb *bdb) Get(key string) (ret []byte, err error) {
-	err = bdb.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key))
-		if err != nil {
-			return err
-		}
-		return item.Value(func(val []byte) error {
-			ret = make([]byte, len(val))
-			copy(ret, val)
-			return nil
-		})
-	})
-	if err == badger.ErrKeyNotFound {
-		err = db.ErrNotFound
+func (bdb *badgerDB) Table(name string) (db.Table, error) {
+	bdb.mu.Lock()
+	defer bdb.mu.Unlock()
+
+	table, ok := bdb.tables[name]
+	if !ok {
+		return nil, db.ErrTableNotFound
 	}
-	return
+
+	return table, nil
 }
 
-// Delete implements the `db.Iterable` interface
-func (db *bdb) Delete(key string) error {
-	return db.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete([]byte(key))
-	})
+func (bdb *badgerDB) Insert(name string, key string, value interface{}) error {
+	table, err := bdb.Table(name)
+	if err != nil {
+		return err
+	}
+
+	return table.Insert(key, value)
 }
 
-// Size implements the `db.Iterable` interface
-func (db *bdb) Size() (int, error) {
-	count := 0
-	err := db.db.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		it := txn.NewIterator(opts)
-		defer it.Close()
-		for it.Rewind(); it.Valid(); it.Next() {
-			count++
-		}
-		return nil
-	})
+func (bdb *badgerDB) Get(name string, key string, value interface{}) error {
+	table, err := bdb.Table(name)
+	if err != nil {
+		return err
+	}
 
-	return count, err
+	return table.Get(key, value)
 }
 
-// Iterator implements the `db.Iterable` interface
-func (db *bdb) Iterator() db.Iterator {
-	tx := db.db.NewTransaction(false)
-	iter := tx.NewIterator(badger.DefaultIteratorOptions)
-	iter.Rewind()
-	return &Iterator{
-		isFirst:  true,
-		isClosed: false,
-		tx:       tx,
-		iter:     iter,
+func (bdb *badgerDB) Delete(name string, key string) error {
+	table, err := bdb.Table(name)
+	if err != nil {
+		return err
 	}
+
+	return table.Delete(key)
 }
 
-// Iterator implements the `db.Iterator` interface.
-type Iterator struct {
-	isFirst  bool
-	isClosed bool
-	tx       *badger.Txn
-	iter     *badger.Iterator
+func (bdb *badgerDB) Size(name string) (int, error) {
+	table, err := bdb.Table(name)
+	if err != nil {
+		return 0, err
+	}
+
+	return table.Size()
 }
 
-// Next implements the `db.Iterator` interface.
-func (iter *Iterator) Next() bool {
-	if iter.isClosed {
-		return false
+func (bdb *badgerDB) Iterator(name string) (db.Iterator, error) {
+	table, err := bdb.Table(name)
+	if err != nil {
+		return nil, err
 	}
-	if iter.isFirst {
-		iter.isFirst = false
-	} else {
-		iter.iter.Next()
-	}
-	if valid := iter.iter.Valid(); !valid {
-		iter.isClosed = true
-		iter.iter.Close()
-		iter.tx.Discard()
-		return false
-	}
-	return true
-}
 
-// Key implements the `db.Iterator` interface.
-func (iter *Iterator) Key() (string, error) {
-	if iter.isClosed || !iter.iter.Valid() {
-		return "", db.ErrIndexOutOfRange
-	}
-	return string(iter.iter.Item().Key()), nil
-}
-
-// Value implements the `db.Iterator` interface.
-func (iter *Iterator) Value() (ret []byte, err error) {
-	if iter.isClosed || !iter.iter.Valid() {
-		err = db.ErrIndexOutOfRange
-		return
-	}
-	err = iter.iter.Item().Value(func(val []byte) error {
-		ret = make([]byte, len(val))
-		copy(ret, val)
-		return nil
-	})
-	return
+	return table.Iterator()
 }

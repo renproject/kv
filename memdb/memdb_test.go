@@ -47,9 +47,9 @@ var _ = Describe("im-memory implementation of the db", func() {
 					if key == "" {
 						return true
 					}
-					val := testutil.TestStruct{D:[]byte{}}
+					val := testutil.TestStruct{D: []byte{}}
 					err = memdb.Get(name, key, &val)
-					Expect(err).Should(Equal(db.ErrNotFound))
+					Expect(err).Should(Equal(db.ErrKeyNotFound))
 
 					// Should be able to read the value after inserting.
 					Expect(memdb.Insert(name, key, value)).NotTo(HaveOccurred())
@@ -60,7 +60,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 					// Expect no value exists after deleting the value.
 					Expect(memdb.Delete(name, key)).NotTo(HaveOccurred())
 					err = memdb.Get(name, key, &val)
-					Expect(err).Should(Equal(db.ErrNotFound))
+					Expect(err).Should(Equal(db.ErrKeyNotFound))
 
 					return true
 				}
@@ -88,14 +88,14 @@ var _ = Describe("im-memory implementation of the db", func() {
 					Expect(size).Should(Equal(len(values)))
 
 					// Expect iterator gives us all the key-value pairs we insert.
-					iter, err:= memdb.Iterator(name)
+					iter, err := memdb.Iterator(name)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(iter)
 
 					for iter.Next() {
 						key, err := iter.Key()
 						Expect(err).NotTo(HaveOccurred())
-						value := testutil.TestStruct{D:[]byte{}}
+						value := testutil.TestStruct{D: []byte{}}
 						err = iter.Value(&value)
 						Expect(err).NotTo(HaveOccurred())
 
@@ -113,7 +113,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 
 		Context("when doing operations on a non-exist table", func() {
 			It("should return ErrTableNotFound", func() {
-				test := func(name string, key string ,value testutil.TestStruct) bool {
+				test := func(name string, key string, value testutil.TestStruct) bool {
 					memdb := New()
 
 					// Retriev table
@@ -121,7 +121,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 					Expect(err).Should(Equal(db.ErrTableNotFound))
 
 					// Insert new key-value pair
-					err = memdb.Insert(name, key, value )
+					err = memdb.Insert(name, key, value)
 					Expect(err).Should(Equal(db.ErrTableNotFound))
 
 					// Retrieve value
@@ -130,7 +130,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 					Expect(err).Should(Equal(db.ErrTableNotFound))
 
 					// Delete data
-					err = memdb.Delete(name, key )
+					err = memdb.Delete(name, key)
 					Expect(err).Should(Equal(db.ErrTableNotFound))
 
 					// Get size
@@ -149,7 +149,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 		})
 
 		Context("when trying to create a table which already exist", func() {
-			It( "should return ErrTableAlreadyExists error", func() {
+			It("should return ErrTableAlreadyExists error", func() {
 				test := func(name string) bool {
 					memdb := New()
 					_, err := memdb.NewTable(name, codec)

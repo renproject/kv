@@ -44,14 +44,14 @@ var _ = Describe("ttl store", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				var newValue testStruct
-				Expect(cache.Get(key, &newValue)).Should(Equal(db.ErrNotFound))
+				Expect(cache.Get(key, &newValue)).Should(Equal(db.ErrKeyNotFound))
 				Expect(cache.Insert(key, value)).NotTo(HaveOccurred())
 
 				Expect(cache.Get(key, &newValue)).NotTo(HaveOccurred())
 				Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
 
 				Expect(cache.Delete(key)).NotTo(HaveOccurred())
-				Expect(cache.Get(key, &newValue)).Should(Equal(db.ErrNotFound))
+				Expect(cache.Get(key, &newValue)).Should(Equal(db.ErrKeyNotFound))
 
 				return true
 			}
@@ -176,7 +176,7 @@ var _ = Describe("ttl store", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				var newValue testStruct
-				Expect(cache.Get(key, &newValue)).Should(Equal(db.ErrNotFound))
+				Expect(cache.Get(key, &newValue)).Should(Equal(db.ErrKeyNotFound))
 				Expect(cache.Insert(key, value)).NotTo(HaveOccurred())
 
 				Expect(cache.Get(key, &newValue)).NotTo(HaveOccurred())

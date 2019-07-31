@@ -9,18 +9,18 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/kv/memdb"
 
-	"github.com/renproject/kv/testutil"
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
+	"github.com/renproject/kv/testutil"
 )
 
 var codecs = []db.Codec{
-	codec.NewJSON(),
-	codec.NewGOB(),
+	codec.JsonCodec,
+	codec.GobCodec,
 }
 
 var _ = Describe("im-memory implementation of the table", func() {
-	for i := range codecs{
+	for i := range codecs {
 		codec := codecs[i]
 
 		Context(fmt.Sprintf("when reading and writing using %v codec", codec), func() {
@@ -31,12 +31,12 @@ var _ = Describe("im-memory implementation of the table", func() {
 						return true
 					}
 
-					// Expect not value exists in the db with the given key.
+					// Expect no value exists in the db with the given key.
 					// << Since gob will parse empty bytes to nil slice. reflect.DeepEqual will return false.
 					// << So we need to initialize D to be a non-nil slice.
-					val := testutil.TestStruct{D:[]byte{}}
+					val := testutil.TestStruct{D: []byte{}}
 					err := table.Get(key, &val)
-					Expect(err).Should(Equal(db.ErrNotFound))
+					Expect(err).Should(Equal(db.ErrKeyNotFound))
 
 					// Should be able to read the value after inserting.
 					Expect(table.Insert(key, value)).NotTo(HaveOccurred())
@@ -47,7 +47,7 @@ var _ = Describe("im-memory implementation of the table", func() {
 					// Expect no value exists after deleting the value.
 					Expect(table.Delete(key)).NotTo(HaveOccurred())
 					err = table.Get(key, &val)
-					Expect(err).Should(Equal(db.ErrNotFound))
+					Expect(err).Should(Equal(db.ErrKeyNotFound))
 
 					return true
 				}
@@ -73,12 +73,12 @@ var _ = Describe("im-memory implementation of the table", func() {
 					Expect(size).Should(Equal(len(values)))
 
 					// Expect iterator gives us all the key-value pairs we insert.
-					iter, err:= table.Iterator()
+					iter, err := table.Iterator()
 					Expect(err).NotTo(HaveOccurred())
 					for iter.Next() {
 						key, err := iter.Key()
 						Expect(err).NotTo(HaveOccurred())
-						value := testutil.TestStruct{D:[]byte{}}
+						value := testutil.TestStruct{D: []byte{}}
 						err = iter.Value(&value)
 						Expect(err).NotTo(HaveOccurred())
 
@@ -131,7 +131,7 @@ var _ = Describe("im-memory implementation of the table", func() {
 					iter, err := table.Iterator()
 					Expect(err).NotTo(HaveOccurred())
 
-					// Iterator should be able to return the only element we insert.
+					// Iterator return db.ErrIndexOutOfRange error when trying to get the key and value.
 					_, err = iter.Key()
 					Expect(err).Should(Equal(db.ErrIndexOutOfRange))
 					var val testutil.TestStruct

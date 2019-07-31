@@ -8,14 +8,14 @@ import (
 
 // memdb is a in-memory implementation of the `db.DB`.
 type memdb struct {
-	mu *sync.RWMutex
+	mu     *sync.RWMutex
 	tables map[string]db.Table
 }
 
 // New returns a new memdb.
 func New() db.DB {
 	return &memdb{
-		mu:   new(sync.RWMutex),
+		mu:     new(sync.RWMutex),
 		tables: map[string]db.Table{},
 	}
 }
@@ -38,7 +38,7 @@ func (memdb *memdb) Table(name string) (db.Table, error) {
 	memdb.mu.Lock()
 	defer memdb.mu.Unlock()
 
-	table ,ok := memdb.tables[name]
+	table, ok := memdb.tables[name]
 	if !ok {
 		return nil, db.ErrTableNotFound
 	}
@@ -77,7 +77,7 @@ func (memdb *memdb) Delete(name string, key string) error {
 }
 
 // Size implements the `db.DB` interface.
-func (memdb *memdb) Size(name string) (int, error ){
+func (memdb *memdb) Size(name string) (int, error) {
 	table, err := memdb.Table(name)
 	if err != nil {
 		return 0, err

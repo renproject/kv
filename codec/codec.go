@@ -4,60 +4,50 @@ import (
 	"bytes"
 	"encoding/gob"
 	"encoding/json"
-
-	"github.com/renproject/kv/db"
 )
 
-// JsonCodec is a json implementation of the `db.Codec`. It encodes and decodes
-// data using the json standard.
-type JsonCodec struct {}
+var JsonCodec jsonCodec
 
-// NewJSON returns a `db.Codec` using JSON.
-func NewJSON() db.Codec{
-	return JsonCodec{}
-}
+// jsonCodec is a json implementation of the `db.Codec`. It encodes and decodes
+// data using the json standard.
+type jsonCodec struct{}
 
 // Encode implements the `db.Codec`
-func (JsonCodec) Encode(obj interface{}) ([]byte, error) {
+func (jsonCodec) Encode(obj interface{}) ([]byte, error) {
 	return json.Marshal(obj)
 }
 
 // Decode implements the `db.Codec`
-func (JsonCodec) Decode(data []byte, value interface{}) error {
+func (jsonCodec) Decode(data []byte, value interface{}) error {
 	return json.Unmarshal(data, &value)
 }
 
-func (JsonCodec) String()string {
+func (jsonCodec) String() string {
 	return "json"
 }
 
-// GobCodec is a gob implementation of the `db.Codec`. It encodes and decodes
+var GobCodec gobCodec
+
+// gobCodec is a gob implementation of the `db.Codec`. It encodes and decodes
 // data using the golang `encoding/gob` package.
-type GobCodec struct {
-
-}
-
-// NewGOB returns a `db.Codec` using gob.
-func NewGOB() db.Codec{
-	return GobCodec{}
-}
+type gobCodec struct{}
 
 // Encode implements the `db.Codec`
-func (GobCodec) Encode(obj interface{}) ([]byte, error) {
+func (gobCodec) Encode(obj interface{}) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := gob.NewEncoder(buf).Encode(obj); err != nil {
-		return nil ,err
+		return nil, err
 	}
 
 	return buf.Bytes(), nil
 }
 
 // Decode implements the `db.Codec`
-func (GobCodec) Decode(data []byte, value interface{}) error {
+func (gobCodec) Decode(data []byte, value interface{}) error {
 	buf := bytes.NewBuffer(data)
 	return gob.NewDecoder(buf).Decode(value)
 }
 
-func (GobCodec) String()string {
+func (gobCodec) String() string {
 	return "gob"
 }

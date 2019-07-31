@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	// ErrNotFound is returned when there is no value associated with a key.
-	ErrNotFound = db.ErrNotFound
+	// ErrKeyNotFound is returned when there is no value associated with a key.
+	ErrNotFound = db.ErrKeyNotFound
 )
 
 type (
