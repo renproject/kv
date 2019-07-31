@@ -23,6 +23,7 @@ func New(bdb *badger.DB) db.DB {
 	}
 }
 
+// NewTable returns a badgerDB implementation of the db.Table.
 func (bdb *badgerDB) NewTable(name string, codec db.Codec) (db.Table, error) {
 	bdb.mu.Lock()
 	defer bdb.mu.Unlock()
@@ -35,6 +36,7 @@ func (bdb *badgerDB) NewTable(name string, codec db.Codec) (db.Table, error) {
 	return bdb.tables[name], nil
 }
 
+// Table implements the `db.DB` interface.
 func (bdb *badgerDB) Table(name string) (db.Table, error) {
 	bdb.mu.Lock()
 	defer bdb.mu.Unlock()
@@ -47,6 +49,7 @@ func (bdb *badgerDB) Table(name string) (db.Table, error) {
 	return table, nil
 }
 
+// Insert implements the `db.DB` interface.
 func (bdb *badgerDB) Insert(name string, key string, value interface{}) error {
 	table, err := bdb.Table(name)
 	if err != nil {
@@ -56,6 +59,7 @@ func (bdb *badgerDB) Insert(name string, key string, value interface{}) error {
 	return table.Insert(key, value)
 }
 
+// Get implements the `db.DB` interface.
 func (bdb *badgerDB) Get(name string, key string, value interface{}) error {
 	table, err := bdb.Table(name)
 	if err != nil {
@@ -65,6 +69,7 @@ func (bdb *badgerDB) Get(name string, key string, value interface{}) error {
 	return table.Get(key, value)
 }
 
+// Delete implements the `db.DB` interface.
 func (bdb *badgerDB) Delete(name string, key string) error {
 	table, err := bdb.Table(name)
 	if err != nil {
@@ -74,6 +79,7 @@ func (bdb *badgerDB) Delete(name string, key string) error {
 	return table.Delete(key)
 }
 
+// Size implements the `db.DB` interface.
 func (bdb *badgerDB) Size(name string) (int, error) {
 	table, err := bdb.Table(name)
 	if err != nil {
@@ -83,6 +89,7 @@ func (bdb *badgerDB) Size(name string) (int, error) {
 	return table.Size()
 }
 
+// Iterator implements the `db.DB` interface.
 func (bdb *badgerDB) Iterator(name string) (db.Iterator, error) {
 	table, err := bdb.Table(name)
 	if err != nil {
