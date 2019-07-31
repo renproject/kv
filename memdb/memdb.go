@@ -6,115 +6,92 @@ import (
 	"github.com/renproject/kv/db"
 )
 
-// memdb is a in-memory implementation of the `db.Iterable`.
+// memdb is a in-memory implementation of the `db.DB`.
 type memdb struct {
-	mu   *sync.RWMutex
-	data map[string][]byte
+	mu *sync.RWMutex
+	tables map[string]db.Table
 }
 
 // New returns a new memdb.
-func New() db.Iterable {
+func New() db.DB {
 	return &memdb{
 		mu:   new(sync.RWMutex),
-		data: map[string][]byte{},
+		tables: map[string]db.Table{},
 	}
 }
 
-// Insert implements the `db.Iterable` interface.
-func (memdb memdb) Insert(key string, value []byte) error {
-	if key == "" {
-		return db.ErrEmptyKey
-	}
-
+// NewTable implements the `db.DB` interface.
+func (memdb *memdb) NewTable(name string, codec db.Codec) (db.Table, error) {
 	memdb.mu.Lock()
 	defer memdb.mu.Unlock()
 
-	memdb.data[key] = value
-	return nil
+	_, ok := memdb.tables[name]
+	if ok {
+		return nil, db.ErrTableAlreadyExists
+	}
+	memdb.tables[name] = NewTable(codec)
+	return memdb.tables[name], nil
 }
 
-// Get implements the `db.Iterable` interface.
-func (memdb memdb) Get(key string) ([]byte, error) {
-	memdb.mu.RLock()
-	defer memdb.mu.RUnlock()
+// Table implements the `db.DB` interface.
+func (memdb *memdb) Table(name string) (db.Table, error) {
+	memdb.mu.Lock()
+	defer memdb.mu.Unlock()
 
-	val, ok := memdb.data[key]
+	table ,ok := memdb.tables[name]
 	if !ok {
-		return nil, db.ErrNotFound
-	}
-	return val, nil
-}
-
-// Delete implements the `db.Iterable` interface.
-func (memdb memdb) Delete(key string) error {
-	memdb.mu.Lock()
-	defer memdb.mu.Unlock()
-
-	delete(memdb.data, key)
-	return nil
-}
-
-// Size implements the `db.Iterable` interface.
-func (memdb memdb) Size() (int, error) {
-	memdb.mu.RLock()
-	defer memdb.mu.RUnlock()
-
-	return len(memdb.data), nil
-}
-
-// Iterator implements the `db.Iterable` interface.
-func (memdb memdb) Iterator() db.Iterator {
-	memdb.mu.RLock()
-	defer memdb.mu.RUnlock()
-
-	return newIterator(memdb.data)
-}
-
-type iterator struct {
-	index  int
-	keys   []string
-	values [][]byte
-}
-
-func newIterator(data map[string][]byte) db.Iterator {
-	keys := make([]string, 0, len(data))
-	values := make([][]byte, 0, len(data))
-	for key, value := range data {
-		keys = append(keys, key)
-		values = append(values, value)
+		return nil, db.ErrTableNotFound
 	}
 
-	return &iterator{
-		index:  -1,
-		keys:   keys,
-		values: values,
-	}
+	return table, nil
 }
 
-// Next implements the `db.Iterator` interface.
-func (iter *iterator) Next() bool {
-	iter.index++
-	return iter.index < len(iter.keys)
+// Insert implements the `db.DB` interface.
+func (memdb *memdb) Insert(name string, key string, value interface{}) error {
+	table, err := memdb.Table(name)
+	if err != nil {
+		return err
+	}
+
+	return table.Insert(key, value)
 }
 
-// Key implements the `db.Iterator` interface.
-func (iter *iterator) Key() (string, error) {
-	if iter.index == -1 {
-		return "", db.ErrIndexOutOfRange
+// Get implements the `db.DB` interface.
+func (memdb *memdb) Get(name string, key string, value interface{}) error {
+	table, err := memdb.Table(name)
+	if err != nil {
+		return err
 	}
-	if iter.index >= len(iter.keys) {
-		return "", db.ErrIndexOutOfRange
-	}
-	return iter.keys[iter.index], nil
+
+	return table.Get(key, value)
 }
 
-// Value implements the `db.Iterator` interface.
-func (iter *iterator) Value() ([]byte, error) {
-	if iter.index == -1 {
-		return nil, db.ErrIndexOutOfRange
+// Delete implements the `db.DB` interface.
+func (memdb *memdb) Delete(name string, key string) error {
+	table, err := memdb.Table(name)
+	if err != nil {
+		return err
 	}
-	if iter.index >= len(iter.keys) {
-		return nil, db.ErrIndexOutOfRange
+
+	return table.Delete(key)
+}
+
+// Size implements the `db.DB` interface.
+func (memdb *memdb) Size(name string) (int, error ){
+	table, err := memdb.Table(name)
+	if err != nil {
+		return 0, err
 	}
-	return iter.values[iter.index], nil
+
+	return table.Size()
+}
+
+// Iterator implements the `db.DB` interface.
+func (memdb *memdb) Iterator(name string) (db.Iterator, error) {
+	table, err := memdb.Table(name)
+	if err != nil {
+		return nil, err
+	}
+
+	return table.Iterator()
 }
