@@ -21,12 +21,10 @@ jobs:
             go get -u github.com/onsi/ginkgo/ginkgo
             go get -u github.com/loongy/covermerge
             go get -u github.com/mattn/goveralls
-            go test ./...
             CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
             /go/bin/covermerge          \
               badgerdb/coverprofile.out \
               cache/coverprofile.out    \
-              json/coverprofile.out     \
               memdb/coverprofile.out > coverprofile.out
             /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
       - save_cache:
