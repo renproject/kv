@@ -11,6 +11,7 @@ import (
 	"github.com/renproject/kv/db"
 	"github.com/renproject/kv/memdb"
 )
+
 var (
 	// ErrKeyNotFound is returned when there is no value associated with a key.
 	ErrKeyNotFound = errors.New("key not found")
@@ -47,7 +48,6 @@ var (
 
 	// TODO: Comment!
 	NewMemTable = memdb.NewTable
-
 
 	// NewMemDB returns a key-value database that is implemented in-memory. This
 	// implementation is fast, but does not store data on-disk. A time-to-live can
@@ -86,4 +86,3 @@ var (
 // 	// underlying store is also safe for concurrent use.
 // 	NewTTLCache = cache.NewTTL
 // )
-
