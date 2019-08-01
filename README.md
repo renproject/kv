@@ -99,7 +99,7 @@ Iterating through the table
 ```
 
 ### DB
-DB is a collection of tables. You can create new tables in the DB or accessing existing table by the table name.
+DB is a collection of tables. It is useful when you want to have multiple tables and using the same underlying database instance. (i.e. same badgerDB file). You can create new tables in the DB or accessing existing table by the table name.
 DB is also concurrent safe to use as long as the table is. There're helper functions which allow you to manipulate on
 a specific table of the DB directly. Or your can get the table by it's name and calling functions from the table.
 
@@ -140,8 +140,6 @@ Read/Write directly though the DB
 	iter, err := db.Iterator("name")
 	handle(err)
 ```
-
-
 
 
 Built with ❤ by Ren.
