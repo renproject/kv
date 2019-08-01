@@ -2,8 +2,10 @@ package lru_test
 
 import (
 	"fmt"
+	"math/rand"
 	"os/exec"
 	"reflect"
+	"testing"
 	"testing/quick"
 
 	. "github.com/onsi/ginkgo"
@@ -22,22 +24,12 @@ var codecs = []db.Codec{
 	codec.GobCodec,
 }
 
+const (
+	benchmarkReads  = 1000
+	benchmarkWrites = 10
+)
+
 var _ = Describe("im-memory LRU implementation of the db", func() {
-	initDB := func() *badger.DB {
-		Expect(exec.Command("mkdir", "-p", ".badgerdb").Run()).NotTo(HaveOccurred())
-		opts := badger.DefaultOptions("./.badgerdb")
-		opts.Dir = "./.badgerdb"
-		opts.ValueDir = "./.badgerdb"
-		db, err := badger.Open(opts)
-		Expect(err).NotTo(HaveOccurred())
-		return db
-	}
-
-	closeDB := func(db *badger.DB) {
-		Expect(db.Close()).NotTo(HaveOccurred())
-		Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
-	}
-
 	for i := range codecs {
 		codec := codecs[i]
 
@@ -63,7 +55,7 @@ var _ = Describe("im-memory LRU implementation of the db", func() {
 				Expect(quick.Check(tableTest, nil)).NotTo(HaveOccurred())
 			})
 
-			It("should be able to iterable through the db using the iterator", func() {
+			It("should be able to read and write values to the db", func() {
 				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
 					badgerDB := initDB()
 					defer closeDB(badgerDB)
@@ -73,10 +65,6 @@ var _ = Describe("im-memory LRU implementation of the db", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(table).ShouldNot(BeNil())
 
-					// Make sure the key is not nil
-					if key == "" {
-						return true
-					}
 					val := testutil.TestStruct{D: []byte{}}
 					err = lruDB.Get(name, key, &val)
 					Expect(err).Should(Equal(db.ErrKeyNotFound))
@@ -226,3 +214,65 @@ var _ = Describe("im-memory LRU implementation of the db", func() {
 		})
 	}
 })
+
+func BenchmarkLRU(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		func() {
+			badgerDB := initDB()
+			defer closeDB(badgerDB)
+
+			lruDB := New(badgerdb.New(badgerDB), benchmarkWrites)
+			benchmarkDB(lruDB)
+		}()
+	}
+}
+
+func BenchmarkBadgerDB(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		func() {
+			badgerDB := initDB()
+			defer closeDB(badgerDB)
+
+			bDB := badgerdb.New(badgerDB)
+			benchmarkDB(bDB)
+		}()
+
+	}
+}
+
+func benchmarkDB(database db.DB) {
+	name := "testDB"
+	key := "testKey"
+
+	table, err := database.NewTable(name, codec.GobCodec)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(table).ShouldNot(BeNil())
+
+	for i := 0; i < benchmarkWrites; i++ {
+		newKey := key + string(i)
+		value := testutil.RandomTestStruct()
+		Expect(database.Insert(name, newKey, value)).NotTo(HaveOccurred())
+	}
+
+	for i := 0; i < benchmarkReads; i++ {
+		queryKey := key + string(rand.Intn(benchmarkWrites))
+		val := testutil.TestStruct{D: []byte{}}
+		err = database.Get(name, queryKey, &val)
+		Expect(err).NotTo(HaveOccurred())
+	}
+}
+
+func initDB() *badger.DB {
+	Expect(exec.Command("mkdir", "-p", ".badgerdb").Run()).NotTo(HaveOccurred())
+	opts := badger.DefaultOptions("./.badgerdb")
+	opts.Dir = "./.badgerdb"
+	opts.ValueDir = "./.badgerdb"
+	db, err := badger.Open(opts.WithLogger(nil))
+	Expect(err).NotTo(HaveOccurred())
+	return db
+}
+
+func closeDB(db *badger.DB) {
+	Expect(db.Close()).NotTo(HaveOccurred())
+	Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
+}
