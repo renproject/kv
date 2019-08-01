@@ -65,6 +65,10 @@ var _ = Describe("in-memory LRU cache", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(table).ShouldNot(BeNil())
 
+					// Make sure the key is not nil
+					if key == "" {
+						return true
+					}
 					val := testutil.TestStruct{D: []byte{}}
 					err = lruDB.Get(name, key, &val)
 					Expect(err).Should(Equal(db.ErrKeyNotFound))
