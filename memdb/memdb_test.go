@@ -1,6 +1,7 @@
 package memdb_test
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -149,8 +150,10 @@ var _ = Describe("im-memory implementation of the db", func() {
 							errs[i] = err
 							return
 						}
-						Expect(size).Should(Equal(len(entries)))
-
+						if size != len(entries) {
+							errs[i] = fmt.Errorf("test failed, unexpected table size, expect = %v, got = %v", len(entries), size)
+							return
+						}
 						// Retrieve all data entries
 						for j, entry := range entries {
 							storedEntry := testutil.TestStruct{D: []byte{}}
@@ -205,19 +208,37 @@ var _ = Describe("im-memory implementation of the db", func() {
 
 						// Expect iterator gives us all the key-value pairs we inserted.
 						iter, err := memdb.Iterator(names[i])
-						Expect(err).NotTo(HaveOccurred())
-						Expect(iter)
+						if err != nil {
+							errs[i] = err
+							return
+						}
 
 						for iter.Next() {
 							key, err := iter.Key()
-							Expect(err).NotTo(HaveOccurred())
+							if err != nil {
+								errs[i] = err
+								return
+							}
 							value := testutil.TestStruct{D: []byte{}}
 							err = iter.Value(&value)
-							Expect(err).NotTo(HaveOccurred())
+							if err != nil {
+								errs[i] = err
+								return
+							}
 
 							stored, ok := allValues[key]
-							Expect(ok).Should(BeTrue())
-							Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
+							if err != nil {
+								errs[i] = err
+								return
+							}
+							if !ok {
+								errs[i] = errors.New("test failed, iterator has new values inserted after the iterator been created ")
+								return
+							}
+							if !reflect.DeepEqual(value, stored) {
+								errs[i] = errors.New("test failed, stored value different are different")
+								return
+							}
 							delete(allValues, key)
 						}
 					})

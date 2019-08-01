@@ -9,11 +9,11 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/kv/memdb"
-	"github.com/renproject/phi"
 
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
 	"github.com/renproject/kv/testutil"
+	"github.com/renproject/phi"
 )
 
 var codecs = []db.Codec{
@@ -95,7 +95,7 @@ var _ = Describe("im-memory implementation of the table", func() {
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 			})
 
-			FIt("should return a iterator which only has the view of the table at the time been created", func() {
+			It("should return a iterator which only has the view of the table at the time been created", func() {
 				iteration := func(values []testutil.TestStruct) bool {
 					table := NewTable(codec)
 

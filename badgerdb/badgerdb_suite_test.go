@@ -35,3 +35,8 @@ var _ = AfterSuite(func() {
 	Expect(bdb.Close()).NotTo(HaveOccurred())
 	Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
 })
+
+// Clean the badgerDB instance after each test
+var _ = JustAfterEach(func() {
+	Expect(bdb.DropAll()).Should(Succeed())
+})
