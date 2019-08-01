@@ -1,6 +1,8 @@
 package lru
 
 import (
+	"reflect"
+
 	"github.com/golang/groupcache/lru"
 	"github.com/renproject/kv/db"
 )
@@ -35,16 +37,23 @@ func (table *table) Get(key string, value interface{}) error {
 		return db.ErrEmptyKey
 	}
 
-	var ok bool
-	value, ok = table.lru.Get(key)
-	if ok {
-		return nil
+	if val, ok := table.lru.Get(key); ok {
+		dest := reflect.ValueOf(value)
+		if dest.Kind() == reflect.Ptr {
+			ptrDest := dest.Elem()
+			ptrDest.Set(reflect.ValueOf(val))
+			return nil
+		}
 	}
 	return table.dbTable.Get(key, value)
 }
 
 // Delete implements the `db.Table` interface.
 func (table *table) Delete(key string) error {
+	if key == "" {
+		return db.ErrEmptyKey
+	}
+
 	table.lru.Remove(key)
 	return table.dbTable.Delete(key)
 }

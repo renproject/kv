@@ -10,7 +10,7 @@ type inMemLRU struct {
 	tables     map[string]db.Table
 }
 
-func NewLRU(ldb db.DB, maxEntriesPerTable int) db.DB {
+func New(ldb db.DB, maxEntriesPerTable int) db.DB {
 	return &inMemLRU{
 		maxEntries: maxEntriesPerTable,
 		db:         ldb,
