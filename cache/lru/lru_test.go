@@ -29,7 +29,7 @@ const (
 	benchmarkWrites = 10
 )
 
-var _ = Describe("im-memory LRU implementation of the db", func() {
+var _ = Describe("in-memory LRU cache", func() {
 	for i := range codecs {
 		codec := codecs[i]
 
