@@ -12,12 +12,13 @@ jobs:
     <<: *defaults
     steps:
       - checkout
-#      - restore_cache:
-#          key: go-mod-v3-{{ checksum "go.sum" }}
+      - restore_cache:
+          key: go-mod-v3-{{ checksum "go.sum" }}
       - run:
           name: Building and testing
           command: |
             go build ./...
+            go get -u golang.org/x/crypto/...
             go get -u github.com/onsi/ginkgo/ginkgo
             go get -u github.com/onsi/gomega/...
             go get -u github.com/loongy/covermerge
@@ -28,10 +29,10 @@ jobs:
               cache/coverprofile.out    \
               memdb/coverprofile.out > coverprofile.out
             /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
-#      - save_cache:
-#          key: go-mod-v3-{{ checksum "go.sum" }}
-#          paths:
-#            - "~/go"
+      - save_cache:
+          key: go-mod-v3-{{ checksum "go.sum" }}
+          paths:
+            - "~/go"
 
 workflows:
   version: 2.1
