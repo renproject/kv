@@ -26,7 +26,7 @@ Requirements
 Usage
 -----------
 
-###Codec###
+### Codec
 
 A **Codec** is something can encode arbitrary object into bytes and decode bytes back to the original object.
 There're two **Codec** we currently support `JsonCodec` and `GobCodec`.
@@ -34,11 +34,13 @@ More details can be found from [JsonCodec](https://golang.org/pkg/encoding/json/
 
 ```go
     codec := kv.JsonCodec
-    codec = kv.GobCodec
+    
+    codec := kv.GobCodec
 
 ```
 
-###Table###
+### Table
+
 A **Table** is a sql-like table for storing key-value pairs.
 It requires the key to be a non-empty string and the value to be able to be marshaled/unmarshaled by the provided **Codec**.
 
@@ -47,14 +49,14 @@ Creating a Table:
 	// BadgerDB implementation 
 	bdb, err:= badger.Open(badger.DefaultOptions("."))
 	handle(err)
-	badgerTable := kv.NewBadgerTable("table_name", bdb, kv.JsonCodec)
+	table := kv.NewBadgerTable("name", bdb, kv.JsonCodec)
 	
 	// In-memory implementation 
-	cacheTable := kv.NewMemTable(kv.JsonCodec)
+	table := kv.NewMemTable(kv.JsonCodec)
 
 ```
 
-Read write and delete on a table :
+Read, write and delete on a table :
 
 ```go
     type Ren struct{
@@ -62,19 +64,21 @@ Read write and delete on a table :
         B int
         C []byte
     }
-   
+    
+    // Insert new data 
     ren := Ren{ "ren", 100, []byte{1,2,3}}
     err := table.Insert("key", ren)
     handle(err)
     
+    // Retrieve data 
     var newRen Ren
-    err = table.Get("key", &newRen) // Make sure you provide a pointer here
+    err = table.Get("key", &newRen) // Make sure you pass a pointer here
     handle(err)
-    
     fmt.Printf("old ren = %v\nnew ren = %v", ren, newRen)
     // old ren = {ren 100 [1 2 3]}
     // new ren = {ren 100 [1 2 3]} 	
 
+    // Delete data
     err := table.Delete("key")
     handle(err)
 ```
@@ -89,12 +93,12 @@ Iterating through the table
         key, err := iter.Key()
         handle(err)
         var value Ren 
-        err = iter.Value(&value)  // Make sure you provide a pointer here
+        err = iter.Value(&value)  // Make sure you pass a pointer here
         handle(err)
     }
 ```
 
-###DB###
+### DB
 DB is a collection of tables. You can create new tables in the DB or accessing existing table by the table name.
 DB is also concurrent safe to use as long as the table is. There're helper functions which allow you to manipulate on
 a specific table of the DB directly. Or your can get the table by it's name and calling functions from the table.
@@ -104,15 +108,15 @@ Creating a DB:
 	// BadgerDB implementation 
 	bdb, err:= badger.Open(badger.DefaultOptions("."))
 	handle(err)
-	badgerDB := kv.NewBadgerDB( bdb)
+	db := kv.NewBadgerDB(bdb)
 	
 	// In-memory implementation 
-	cacheDB := kv.NewMemDB()
+	db := kv.NewMemDB()
 ```
 
 Creating new tables or accessing existing ones 
 ```go
-	table, err := db.NewTable("table-name", kv.JsonCodec)
+	table, err := db.NewTable("name", kv.JsonCodec)
 	handle(err)
 	
 	table, err = db.Table("table-name")
@@ -122,18 +126,18 @@ Creating new tables or accessing existing ones
 Read/Write directly though the DB 
 ```go
 	db := kv.NewBadgerDB(bdb)
-	_, err := db.NewTable("table_name", kv.JsonCodec)
+	_, err := db.NewTable("name", kv.JsonCodec)
 	handle(err)
-	err = db.Insert("table_name", "key", "value")
+	err = db.Insert("name", "key", "value")
 	handle(err)
 	var value string
-	err = db.Get("table_name", "key", &value)
+	err = db.Get("name", "key", &value)
 	handle(err)
-	err = db.Delete("table_name", "key")
+	err = db.Delete("name", "key")
 	handle(err)
-	size, err := db.Size("table_name")
+	size, err := db.Size("name")
 	handle(err)
-	iter, err := db.Iterator("table_name")
+	iter, err := db.Iterator("name")
 	handle(err)
 ```
 
