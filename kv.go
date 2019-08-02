@@ -9,7 +9,6 @@ import (
 	"github.com/renproject/kv/badgerdb"
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
-	"github.com/renproject/kv/leveldb"
 	"github.com/renproject/kv/memdb"
 )
 
@@ -57,10 +56,6 @@ var (
 	// key-value tuples until they are explicitly deleted. It is safe for concurrent
 	// use.
 	NewMemDB = memdb.New
-
-	// NewLevelDB returns a key-value database that is implemented using
-	// LevelDB. For more information, see https://github.com/syndtr/goleveldb.
-	NewLevelDB = leveldb.New
 )
 
 // BadgerDB implementation of the DB and table
