@@ -9,9 +9,6 @@ import (
 	"github.com/renproject/kv/badgerdb"
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
-	"github.com/renproject/kv/gob"
-	"github.com/renproject/kv/json"
-	"github.com/renproject/kv/leveldb"
 	"github.com/renproject/kv/memdb"
 )
 
