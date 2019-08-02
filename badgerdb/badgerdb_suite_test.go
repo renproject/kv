@@ -23,8 +23,6 @@ var _ = BeforeSuite(func() {
 	err := exec.Command("mkdir", "-p", ".badgerdb").Run()
 	Expect(err).NotTo(HaveOccurred())
 	opts := badger.DefaultOptions("./.badgerdb")
-	opts.Dir = "./.badgerdb"
-	opts.ValueDir = "./.badgerdb"
 	bdb, err = badger.Open(opts)
 	Expect(err).NotTo(HaveOccurred())
 	time.Sleep(time.Second)
