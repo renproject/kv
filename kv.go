@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/renproject/kv/badgerdb"
+	"github.com/renproject/kv/cache/lru"
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
 	"github.com/renproject/kv/memdb"
@@ -56,6 +57,9 @@ var (
 	// key-value tuples until they are explicitly deleted. It is safe for concurrent
 	// use.
 	NewMemDB = memdb.New
+
+	// TODO: Comment!
+	NewLRUCache = lru.New
 )
 
 // BadgerDB implementation of the DB and table
