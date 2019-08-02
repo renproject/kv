@@ -3,20 +3,24 @@ package kv_test
 import (
 	"math/rand"
 	"os/exec"
+	"reflect"
 	"testing"
 
 	"github.com/dgraph-io/badger"
 	bdb "github.com/renproject/kv/badgerdb"
+	"github.com/renproject/kv/cache/lru"
+	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
 	ldb "github.com/renproject/kv/leveldb"
+	"github.com/renproject/kv/testutil"
 	"github.com/syndtr/goleveldb/leveldb"
 
 	. "github.com/onsi/gomega"
 )
 
 const (
-	benchmarkReads  = 10
-	benchmarkWrites = 100
+	benchmarkReads  = 1000
+	benchmarkWrites = 10
 )
 
 func BenchmarkLevelDB(b *testing.B) {
@@ -40,23 +44,56 @@ func BenchmarkBadgerDB(b *testing.B) {
 			bDB := bdb.New(badgerDB)
 			benchmarkDB(bDB)
 		}()
+	}
+}
 
+func BenchmarkLRUCacheWithLevelDB(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		func() {
+			leveldb := initLevelDB()
+			defer closeLevelDB(leveldb)
+
+			lru := lru.New(ldb.New(leveldb), 1000)
+			benchmarkDB(lru)
+		}()
+	}
+}
+
+func BenchmarkLRUCacheWithBadgerDB(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		func() {
+			badgerDB := initBadgerDB()
+			defer closeBadgerDB(badgerDB)
+
+			lru := lru.New(bdb.New(badgerDB), 1000)
+			benchmarkDB(lru)
+		}()
 	}
 }
 
 func benchmarkDB(database db.DB) {
+	name := "testDB"
 	key := "testKey"
+
+	table, err := database.NewTable(name, codec.GobCodec)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(table).ShouldNot(BeNil())
+
+	vals := make([]testutil.TestStruct, benchmarkWrites)
 
 	for i := 0; i < benchmarkWrites; i++ {
 		newKey := key + string(i)
-		value := randBytes()
-		Expect(database.Insert(newKey, value)).NotTo(HaveOccurred())
+		vals[i] = testutil.RandomTestStruct()
+		Expect(database.Insert(name, newKey, vals[i])).NotTo(HaveOccurred())
 	}
 
 	for i := 0; i < benchmarkReads; i++ {
-		queryKey := key + string(rand.Intn(benchmarkWrites))
-		_, err := database.Get(queryKey)
+		queryIndex := rand.Intn(benchmarkWrites)
+		queryKey := key + string(queryIndex)
+		val := testutil.TestStruct{D: []byte{}}
+		err = database.Get(name, queryKey, &val)
 		Expect(err).NotTo(HaveOccurred())
+		Expect(reflect.DeepEqual(val, vals[queryIndex])).Should(BeTrue())
 	}
 }
 
