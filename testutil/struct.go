@@ -25,3 +25,48 @@ func RandomTestStruct() TestStruct {
 	}
 	return value.Interface().(TestStruct)
 }
+
+func RandomTestStructGroups(group, entriesPerGroup int) [][]TestStruct {
+	testEntries := make([][]TestStruct, group)
+	for i := range testEntries {
+		testEntries[i] = make([]TestStruct, entriesPerGroup)
+		for j := range testEntries[i] {
+			testEntries[i][j] = RandomTestStruct()
+		}
+	}
+
+	return testEntries
+}
+
+func RandomNonDupStrings(i int) []string {
+	cap := rand.Intn(i)
+	dup := map[string]struct{}{}
+	res := make([]string, 0, cap)
+
+	for len(dup) < cap {
+		t := reflect.TypeOf("")
+		value, ok := quick.Value(t, Ran)
+		if !ok {
+			panic("cannot create random test struct")
+		}
+		v := value.Interface().(string)
+		if _, ok := dup[v]; ok {
+			continue
+		}
+		dup[v] = struct{}{}
+		res = append(res, v)
+	}
+
+	return res
+}
+
+// CheckErrors takes a list of errors and check if any of them is not nil.
+// It returns the first non-nil error or nil if all of the errors are nil.
+func CheckErrors(errs []error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

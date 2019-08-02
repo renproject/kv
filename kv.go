@@ -14,6 +14,7 @@ import (
 	"github.com/renproject/kv/leveldb"
 	"github.com/renproject/kv/memdb"
 )
+
 var (
 	// ErrKeyNotFound is returned when there is no value associated with a key.
 	ErrKeyNotFound = errors.New("key not found")
@@ -51,7 +52,6 @@ var (
 	// TODO: Comment!
 	NewMemTable = memdb.NewTable
 
-
 	// NewMemDB returns a key-value database that is implemented in-memory. This
 	// implementation is fast, but does not store data on-disk. A time-to-live can
 	// be used to automatically delete key-value tuples after they have been in the
@@ -59,10 +59,6 @@ var (
 	// key-value tuples until they are explicitly deleted. It is safe for concurrent
 	// use.
 	NewMemDB = memdb.New
-
-	// NewLevelDB returns a key-value database that is implemented using
-	// LevelDB. For more information, see https://github.com/syndtr/goleveldb.
-	NewLevelDB = leveldb.New
 )
 
 // BadgerDB implementation of the DB and table
@@ -93,4 +89,3 @@ var (
 // 	// underlying store is also safe for concurrent use.
 // 	NewTTLCache = cache.NewTTL
 // )
-

@@ -1,6 +1,7 @@
 package memdb_test
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing/quick"
@@ -12,6 +13,7 @@ import (
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
 	"github.com/renproject/kv/testutil"
+	"github.com/renproject/phi"
 )
 
 var codecs = []db.Codec{
@@ -88,6 +90,73 @@ var _ = Describe("im-memory implementation of the table", func() {
 						delete(allValues, key)
 					}
 					return len(allValues) == 0
+				}
+
+				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+			})
+
+			It("should return a iterator which only has the view of the table at the time been created", func() {
+				iteration := func(values []testutil.TestStruct) bool {
+					table := NewTable(codec)
+
+					// Insert all values and make a map for validation.
+					allValues := map[string]testutil.TestStruct{}
+					for i, value := range values {
+						key := fmt.Sprintf("%v", i)
+						Expect(table.Insert(key, value)).NotTo(HaveOccurred())
+						allValues[key] = value
+					}
+
+					// Expect iterator gives us all the key-value pairs we insert iter been created.
+					iter, err := table.Iterator()
+					Expect(err).NotTo(HaveOccurred())
+
+					// Iterating the db while inserting new data entries at the mean time.
+					errs := make([]error, 2)
+					phi.ParBegin(func() {
+						for iter.Next() {
+							key, err := iter.Key()
+							if err != nil {
+								errs[0] = err
+								return
+							}
+							value := testutil.TestStruct{D: []byte{}}
+							err = iter.Value(&value)
+							if err != nil {
+								errs[0] = err
+								return
+							}
+
+							stored, ok := allValues[key]
+							if !ok {
+								if err != nil {
+									errs[0] = errors.New("test failed, iterator has new values inserted after the iterator been created ")
+									return
+								}
+							}
+							if !reflect.DeepEqual(value, stored) {
+								if err != nil {
+									errs[0] = errors.New("test failed, stored value has been changed")
+									return
+								}
+							}
+							delete(allValues, key)
+						}
+						Expect(len(allValues)).Should(BeZero())
+					}, func() {
+						// Inserting new data entries at the meantime.
+						for i := 0; i < 20; i++ {
+							newEntry := testutil.RandomTestStruct()
+							err := table.Insert(fmt.Sprintf("key_%v", i), newEntry)
+							if err != nil {
+								errs[1] = err
+								return
+							}
+						}
+					})
+					Expect(testutil.CheckErrors(errs))
+
+					return true
 				}
 
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())

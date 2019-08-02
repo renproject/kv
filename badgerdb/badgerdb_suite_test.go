@@ -23,8 +23,6 @@ var _ = BeforeSuite(func() {
 	err := exec.Command("mkdir", "-p", ".badgerdb").Run()
 	Expect(err).NotTo(HaveOccurred())
 	opts := badger.DefaultOptions("./.badgerdb")
-	opts.Dir = "./.badgerdb"
-	opts.ValueDir = "./.badgerdb"
 	bdb, err = badger.Open(opts)
 	Expect(err).NotTo(HaveOccurred())
 	time.Sleep(time.Second)
@@ -34,4 +32,9 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	Expect(bdb.Close()).NotTo(HaveOccurred())
 	Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
+})
+
+// Clean the badgerDB instance after each test
+var _ = JustAfterEach(func() {
+	Expect(bdb.DropAll()).Should(Succeed())
 })
