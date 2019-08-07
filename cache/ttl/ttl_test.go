@@ -193,7 +193,7 @@ var _ = Describe("in-memory LRU cache", func() {
 		})
 
 		Context("when reading and writing with data-expiration", func() {
-			It("should be able to store a struct with pre-defined value type", func() {
+			It("should be able return error if the data has expired", func() {
 				readAndWrite := func(name, key string, value testutil.TestStruct) bool {
 					if key == "" {
 						return true
@@ -211,6 +211,117 @@ var _ = Describe("in-memory LRU cache", func() {
 
 					time.Sleep(100 * time.Millisecond)
 					Expect(ttlDB.Get(name, key, &newValue)).To(Equal(cache.ErrExpired))
+
+					return true
+				}
+
+				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+			})
+
+			It("should be able to prune the database automatically", func() {
+				readAndWrite := func(name, key string, value testutil.TestStruct) bool {
+					if key == "" {
+						return true
+					}
+
+					ttlDB := New(memdb.New(), 10*time.Millisecond)
+					_, err := ttlDB.NewTable(name, codec)
+					Expect(err).NotTo(HaveOccurred())
+
+					var newValue testutil.TestStruct
+					Expect(ttlDB.Get(name, key, &newValue)).Should(Equal(db.ErrKeyNotFound))
+					Expect(ttlDB.Insert(name, key, &value)).NotTo(HaveOccurred())
+					Expect(ttlDB.Get(name, key, &newValue)).NotTo(HaveOccurred())
+					Expect(value.Equal(newValue)).Should(BeTrue())
+					size, err := ttlDB.Size(name)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(size).To(Equal(1))
+
+					time.Sleep(10 * time.Millisecond)
+					size, err = ttlDB.Size(name)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(size).To(Equal(0))
+
+					return true
+				}
+
+				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+			})
+
+			It("should be able to prune the database automatically", func() {
+				iteration := func(name string, values []testutil.TestStruct) bool {
+					ttlDB := New(memdb.New(), 100*time.Millisecond)
+					table, err := ttlDB.NewTable(name, codec)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(table).ShouldNot(BeNil())
+
+					// Insert all values and make a map for validation.
+					allValues := map[string]testutil.TestStruct{}
+					for i, value := range values {
+						key := fmt.Sprintf("%v", i)
+						Expect(ttlDB.Insert(name, key, value)).NotTo(HaveOccurred())
+						allValues[key] = value
+					}
+
+					size, err := ttlDB.Size(name)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(size).Should(Equal(len(values)))
+
+					// Expect iterator gives us all the key-value pairs we insert.
+					iter, err := ttlDB.Iterator(name)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(iter).ShouldNot(BeNil())
+
+					for iter.Next() {
+						key, err := iter.Key()
+						Expect(err).NotTo(HaveOccurred())
+						value := testutil.TestStruct{D: []byte{}}
+						err = iter.Value(&value)
+						Expect(err).NotTo(HaveOccurred())
+
+						stored, ok := allValues[key]
+						Expect(ok).Should(BeTrue())
+						Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
+						delete(allValues, key)
+					}
+					Expect(len(allValues)).To(Equal(0))
+
+					time.Sleep(100 * time.Millisecond)
+					// Expect iterator ensures that no values are returned.
+					iter, err = ttlDB.Iterator(name)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(iter).ShouldNot(BeNil())
+					Expect(iter.Next()).To(BeFalse())
+
+					return true
+				}
+
+				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+			})
+
+			It("should be able to prune the database automatically", func() {
+				readAndWrite := func(name, key string, value testutil.TestStruct) bool {
+					if key == "" {
+						return true
+					}
+
+					ttlDB := New(memdb.New(), 10*time.Millisecond)
+					_, err := ttlDB.NewTable(name, codec)
+					Expect(err).NotTo(HaveOccurred())
+
+					var newValue testutil.TestStruct
+					Expect(ttlDB.Get(name, key, &newValue)).Should(Equal(db.ErrKeyNotFound))
+					Expect(ttlDB.Insert(name, key, &value)).NotTo(HaveOccurred())
+					Expect(ttlDB.Get(name, key, &newValue)).NotTo(HaveOccurred())
+					Expect(value.Equal(newValue)).Should(BeTrue())
+					size, err := ttlDB.Size(name)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(size).To(Equal(1))
+
+					time.Sleep(10 * time.Millisecond)
+					size, err = ttlDB.Size(name)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(size).To(Equal(0))
 
 					return true
 				}
