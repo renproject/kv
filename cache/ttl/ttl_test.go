@@ -193,7 +193,7 @@ var _ = Describe("in-memory LRU cache", func() {
 		})
 
 		Context("when reading and writing with data-expiration", func() {
-			FIt("should be able to store a struct with pre-defined value type", func() {
+			It("should be able to store a struct with pre-defined value type", func() {
 				readAndWrite := func(name, key string, value testutil.TestStruct) bool {
 					if key == "" {
 						return true
@@ -205,15 +205,9 @@ var _ = Describe("in-memory LRU cache", func() {
 
 					var newValue testutil.TestStruct
 					Expect(ttlDB.Get(name, key, &newValue)).Should(Equal(db.ErrKeyNotFound))
-					Expect(ttlDB.Insert(name, key, value)).NotTo(HaveOccurred())
+					Expect(ttlDB.Insert(name, key, &value)).NotTo(HaveOccurred())
 					Expect(ttlDB.Get(name, key, &newValue)).NotTo(HaveOccurred())
-					if !reflect.DeepEqual(value, newValue) {
-						fmt.Println("yo", value)
-						fmt.Println("oy", newValue)
-					} else {
-						fmt.Println("all good")
-					}
-					Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+					Expect(value.Equal(newValue)).Should(BeTrue())
 
 					time.Sleep(100 * time.Millisecond)
 					Expect(ttlDB.Get(name, key, &newValue)).To(Equal(cache.ErrExpired))
@@ -224,26 +218,31 @@ var _ = Describe("in-memory LRU cache", func() {
 				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 			})
 
-			/*It("should read all data stored in the store when initializing", func() {
-				readAndWrite := func(key string, value testStruct) bool {
+			It("should read all data stored in the store when initializing", func() {
+				readAndWrite := func(name, key string, value testutil.TestStruct) bool {
 					if key == "" {
 						return true
 					}
-					store := json.New(memdb.New())
-					Expect(store.Insert(key, value)).NotTo(HaveOccurred())
 
-					cache, err := NewTTL(store, 10*time.Second)
+					memDB := memdb.New()
+					_, err := memDB.NewTable(name, codec)
 					Expect(err).NotTo(HaveOccurred())
 
-					var newValue testStruct
-					Expect(cache.Get(key, &newValue)).NotTo(HaveOccurred())
-					Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+					Expect(memDB.Insert(name, key, value)).NotTo(HaveOccurred())
+
+					ttlDB := New(memDB, 10*time.Second)
+					_, err = ttlDB.NewTable(name, codec)
+					Expect(err).NotTo(HaveOccurred())
+
+					var newValue testutil.TestStruct
+					Expect(ttlDB.Get(name, key, &newValue)).NotTo(HaveOccurred())
+					Expect(value.Equal(newValue)).Should(BeTrue())
 
 					return true
 				}
 
 				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
-			})*/
+			})
 		})
 	}
 })

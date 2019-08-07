@@ -27,7 +27,12 @@ func (ttlDB *inMemTTL) NewTable(name string, codec db.Codec) (db.Table, error) {
 	}
 	memDB, err := ttlDB.db.NewTable(name, codec)
 	if err != nil {
-		return nil, err
+		if err == db.ErrTableAlreadyExists {
+			memDB, err = ttlDB.db.Table(name)
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
 	table, err := NewTable(memDB, ttlDB.timeToLive)
 	if err != nil {
