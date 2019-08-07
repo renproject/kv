@@ -13,7 +13,7 @@ A flexible and extensible library for key-value storage.
 - [x] Time-to-live caching
 - [x] Safe for concurrent use
 
-### Benchmarks results (LevelDB vs BadgerDB)
+### Benchmarks results
 
 | Database | Number of iterations run | Time (ns/op) | Memory (bytes/op) |
 |----------|:------------------------:|-------------:|-------------------|
