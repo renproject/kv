@@ -1,4 +1,4 @@
-package cache_test
+package ttl_test
 
 //
 // import (
