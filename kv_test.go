@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	benchmarkReads  = 1000
-	benchmarkWrites = 10
+	benchmarkReads  = 10000
+	benchmarkWrites = 1000
+	cacheLimit      = 100
 )
 
 func BenchmarkLevelDB(b *testing.B) {
@@ -31,6 +32,18 @@ func BenchmarkLevelDB(b *testing.B) {
 
 			lDB := ldb.New(leveldb)
 			benchmarkDB(lDB)
+		}()
+	}
+}
+
+func BenchmarkLevelDBWithLRUCache(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		func() {
+			leveldb := initLevelDB()
+			defer closeLevelDB(leveldb)
+
+			lru := lru.New(ldb.New(leveldb), cacheLimit)
+			benchmarkDB(lru)
 		}()
 	}
 }
@@ -47,25 +60,13 @@ func BenchmarkBadgerDB(b *testing.B) {
 	}
 }
 
-func BenchmarkLRUCacheWithLevelDB(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		func() {
-			leveldb := initLevelDB()
-			defer closeLevelDB(leveldb)
-
-			lru := lru.New(ldb.New(leveldb), 1000)
-			benchmarkDB(lru)
-		}()
-	}
-}
-
-func BenchmarkLRUCacheWithBadgerDB(b *testing.B) {
+func BenchmarkBadgerDBWithLRUCache(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		func() {
 			badgerDB := initBadgerDB()
 			defer closeBadgerDB(badgerDB)
 
-			lru := lru.New(bdb.New(badgerDB), 1000)
+			lru := lru.New(bdb.New(badgerDB), cacheLimit)
 			benchmarkDB(lru)
 		}()
 	}
