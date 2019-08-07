@@ -95,7 +95,7 @@ var _ = Describe("badger DB implementation of the db", func() {
 					// Expect iterator gives us all the key-value pairs we insert.
 					iter, err := badgerDB.Iterator(name)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(iter)
+					Expect(iter).ShouldNot(BeNil())
 
 					for iter.Next() {
 						key, err := iter.Key()
