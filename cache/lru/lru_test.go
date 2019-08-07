@@ -2,10 +2,8 @@ package lru_test
 
 import (
 	"fmt"
-	"math/rand"
 	"os/exec"
 	"reflect"
-	"testing"
 	"testing/quick"
 
 	. "github.com/onsi/ginkgo"
@@ -24,12 +22,22 @@ var codecs = []db.Codec{
 	codec.GobCodec,
 }
 
-const (
-	benchmarkReads  = 1000
-	benchmarkWrites = 10
-)
-
 var _ = Describe("in-memory LRU cache", func() {
+	initDB := func() *badger.DB {
+		Expect(exec.Command("mkdir", "-p", ".badgerdb").Run()).NotTo(HaveOccurred())
+		opts := badger.DefaultOptions("./.badgerdb")
+		opts.Dir = "./.badgerdb"
+		opts.ValueDir = "./.badgerdb"
+		db, err := badger.Open(opts.WithLogger(nil))
+		Expect(err).NotTo(HaveOccurred())
+		return db
+	}
+
+	closeDB := func(db *badger.DB) {
+		Expect(db.Close()).NotTo(HaveOccurred())
+		Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
+	}
+
 	for i := range codecs {
 		codec := codecs[i]
 
@@ -115,7 +123,7 @@ var _ = Describe("in-memory LRU cache", func() {
 					// Expect iterator gives us all the key-value pairs we insert.
 					iter, err := lruDB.Iterator(name)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(iter)
+					Expect(iter).ShouldNot(BeNil())
 
 					for iter.Next() {
 						key, err := iter.Key()
@@ -218,65 +226,3 @@ var _ = Describe("in-memory LRU cache", func() {
 		})
 	}
 })
-
-func BenchmarkLRU(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		func() {
-			badgerDB := initDB()
-			defer closeDB(badgerDB)
-
-			lruDB := New(badgerdb.New(badgerDB), benchmarkWrites)
-			benchmarkDB(lruDB)
-		}()
-	}
-}
-
-func BenchmarkBadgerDB(b *testing.B) {
-	for n := 0; n < b.N; n++ {
-		func() {
-			badgerDB := initDB()
-			defer closeDB(badgerDB)
-
-			bDB := badgerdb.New(badgerDB)
-			benchmarkDB(bDB)
-		}()
-
-	}
-}
-
-func benchmarkDB(database db.DB) {
-	name := "testDB"
-	key := "testKey"
-
-	table, err := database.NewTable(name, codec.GobCodec)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(table).ShouldNot(BeNil())
-
-	for i := 0; i < benchmarkWrites; i++ {
-		newKey := key + string(i)
-		value := testutil.RandomTestStruct()
-		Expect(database.Insert(name, newKey, value)).NotTo(HaveOccurred())
-	}
-
-	for i := 0; i < benchmarkReads; i++ {
-		queryKey := key + string(rand.Intn(benchmarkWrites))
-		val := testutil.TestStruct{D: []byte{}}
-		err = database.Get(name, queryKey, &val)
-		Expect(err).NotTo(HaveOccurred())
-	}
-}
-
-func initDB() *badger.DB {
-	Expect(exec.Command("mkdir", "-p", ".badgerdb").Run()).NotTo(HaveOccurred())
-	opts := badger.DefaultOptions("./.badgerdb")
-	opts.Dir = "./.badgerdb"
-	opts.ValueDir = "./.badgerdb"
-	db, err := badger.Open(opts.WithLogger(nil))
-	Expect(err).NotTo(HaveOccurred())
-	return db
-}
-
-func closeDB(db *badger.DB) {
-	Expect(db.Close()).NotTo(HaveOccurred())
-	Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
-}
