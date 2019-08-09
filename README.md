@@ -46,13 +46,20 @@ It requires the key to be a non-empty string and the value to be able to be mars
 
 Creating a Table:
 ```go
+	// In-memory implementation 
+	table := kv.NewMemTable(kv.JsonCodec)
+
+    // Leveldb implementation
+    ldb, err = leveldb.OpenFile("./.leveldb", nil)
+    handle(err)
+    table := kv.NewLevelTable("name", ldb, kv.JsonCodec)
+
 	// BadgerDB implementation 
 	bdb, err:= badger.Open(badger.DefaultOptions("."))
 	handle(err)
 	table := kv.NewBadgerTable("name", bdb, kv.JsonCodec)
 	
-	// In-memory implementation 
-	table := kv.NewMemTable(kv.JsonCodec)
+
 
 ```
 
@@ -105,13 +112,20 @@ a specific table of the DB directly. Or your can get the table by it's name and 
 
 Creating a DB:
 ```go
+	// In-memory implementation 
+	db := kv.NewMemDB()
+
+    // LevelDB implementation 
+    ldb, err = leveldb.OpenFile("./.leveldb", nil)
+    handle(err)
+    db := kv.NewLevelDB(ldb)
+
 	// BadgerDB implementation 
 	bdb, err:= badger.Open(badger.DefaultOptions("."))
 	handle(err)
 	db := kv.NewBadgerDB(bdb)
 	
-	// In-memory implementation 
-	db := kv.NewMemDB()
+
 ```
 
 Creating new tables or accessing existing ones 

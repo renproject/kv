@@ -9,6 +9,7 @@ import (
 	"github.com/renproject/kv/badgerdb"
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
+	"github.com/renproject/kv/leveldb"
 	"github.com/renproject/kv/memdb"
 )
 
@@ -58,7 +59,7 @@ var (
 	NewMemDB = memdb.New
 )
 
-// BadgerDB implementation of the DB and table
+// BadgerDB implementation of the DB and table.
 var (
 	// TODO: Comment!
 	NewBadgerTable = badgerdb.NewTable
@@ -66,6 +67,16 @@ var (
 	// NewBadgerDB returns a key-value database that is implemented using
 	// BadgerDB. For more information, see https://github.com/dgraph-io/badger.
 	NewBadgerDB = badgerdb.New
+)
+
+// LevelDB implementation of the DB and table.
+var (
+	// TODO: Comment!
+	NewLevelTable = leveldb.NewTable
+
+	// NewLevelDB returns a key-value database that is implemented using
+	// levelDB. For more information, see https://github.com/syndtr/goleveldb.
+	NewLevelDB = leveldb.New
 )
 
 var (
