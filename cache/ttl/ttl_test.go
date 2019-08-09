@@ -209,7 +209,7 @@ var _ = Describe("in-memory LRU cache", func() {
 						return true
 					}
 
-					ttlDB, err := New(memdb.New(), 1*time.Second, 10*time.Millisecond, codec)
+					ttlDB, err := New(memdb.New(), time.Second, 500*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 					_, err = ttlDB.NewTable(name, codec)
 					Expect(err).NotTo(HaveOccurred())
@@ -220,8 +220,9 @@ var _ = Describe("in-memory LRU cache", func() {
 					Expect(ttlDB.Get(name, key, &newValue)).NotTo(HaveOccurred())
 					Expect(value.Equal(newValue)).Should(BeTrue())
 
-					time.Sleep(1100 * time.Millisecond)
-					Expect(ttlDB.Get(name, key, &newValue)).To(Equal(db.ErrKeyNotFound))
+					Eventually(func() error {
+						return ttlDB.Get(name, key, &newValue)
+					}, 2).Should(Equal(db.ErrKeyNotFound))
 
 					return true
 				}
@@ -235,7 +236,7 @@ var _ = Describe("in-memory LRU cache", func() {
 						return true
 					}
 
-					ttlDB, err := New(memdb.New(), 1*time.Second, 10*time.Millisecond, codec)
+					ttlDB, err := New(memdb.New(), time.Second, 500*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 					_, err = ttlDB.NewTable(name, codec)
 					Expect(err).NotTo(HaveOccurred())
@@ -249,10 +250,11 @@ var _ = Describe("in-memory LRU cache", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(size).To(Equal(1))
 
-					time.Sleep(1100 * time.Millisecond)
-					size, err = ttlDB.Size(name)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(size).To(Equal(0))
+					Eventually(func() int {
+						size, err = ttlDB.Size(name)
+						Expect(err).NotTo(HaveOccurred())
+						return size
+					}, 2).Should(Equal(0))
 
 					return true
 				}
