@@ -8,6 +8,7 @@ import (
 
 	"github.com/renproject/kv/badgerdb"
 	"github.com/renproject/kv/cache/lru"
+	"github.com/renproject/kv/cache/ttl"
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
 	"github.com/renproject/kv/memdb"
@@ -60,6 +61,9 @@ var (
 
 	// TODO: Comment!
 	NewLRUCache = lru.New
+
+	// TODO: Comment!
+	NewTTLCache = ttl.New
 )
 
 // BadgerDB implementation of the DB and table
