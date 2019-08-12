@@ -16,7 +16,7 @@ import (
 )
 
 var codecs = []db.Codec{
-	codec.JsonCodec,
+	codec.JSONCodec,
 	codec.GobCodec,
 }
 

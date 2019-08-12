@@ -8,8 +8,9 @@ import (
 	"time"
 )
 
-var Ran = rand.New(rand.NewSource(time.Now().Unix()))
+var ran = rand.New(rand.NewSource(time.Now().Unix()))
 
+// TestStruct is a struct which includes some commonly used types.
 type TestStruct struct {
 	A string
 	B int
@@ -18,9 +19,10 @@ type TestStruct struct {
 	E map[string]float64
 }
 
+// RandomTestStruct returns a random `TestStruct`
 func RandomTestStruct() TestStruct {
 	t := reflect.TypeOf(TestStruct{})
-	value, ok := quick.Value(t, Ran)
+	value, ok := quick.Value(t, ran)
 	if !ok {
 		panic("cannot create random test struct")
 	}
@@ -40,6 +42,7 @@ func (testStruct *TestStruct) Equal(other TestStruct) bool {
 	return testStruct.A == other.A && testStruct.B == other.B && testStruct.C == other.C && bytes.Equal(testStruct.D, other.D)
 }
 
+// RandomTestStructGroups creates a group of random TestStructs.
 func RandomTestStructGroups(group, entriesPerGroup int) [][]TestStruct {
 	testEntries := make([][]TestStruct, group)
 	for i := range testEntries {
@@ -52,14 +55,15 @@ func RandomTestStructGroups(group, entriesPerGroup int) [][]TestStruct {
 	return testEntries
 }
 
+// RandomNonDupStrings returns a list of non-duplicate strings.
 func RandomNonDupStrings(i int) []string {
 	cap := rand.Intn(i)
 	dup := map[string]struct{}{}
 	res := make([]string, 0, cap)
 
-	for len(dup) < cap {
+	for len(res) < cap {
 		t := reflect.TypeOf("")
-		value, ok := quick.Value(t, Ran)
+		value, ok := quick.Value(t, ran)
 		if !ok {
 			panic("cannot create random test struct")
 		}

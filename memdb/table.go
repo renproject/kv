@@ -13,7 +13,7 @@ type table struct {
 	codec db.Codec
 }
 
-// New returns a new table.
+// NewTable returns a new table using given Codec.
 func NewTable(codec db.Codec) db.Table {
 	return &table{
 		mu:    new(sync.RWMutex),

@@ -31,6 +31,9 @@ type Codec interface {
 	Decode(data []byte, value interface{}) error
 }
 
+// Table is a sql-like table for storing key-value pairs. It requires the key
+// to be a non-empty string and the value has the type which can be marshaled
+// and unmarshaled by the used Codec.
 type Table interface {
 
 	// Insert writes the key-value into the Table.
@@ -51,8 +54,7 @@ type Table interface {
 	Iterator() (Iterator, error)
 }
 
-// DB for storing key-value tuples. The key must be a string and the value must
-// be a byte slice.
+// DB is able to add new table and does operations on certain table by its name.
 type DB interface {
 
 	// Insert the key, value pair into the table with given name. It will return

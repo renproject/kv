@@ -30,7 +30,7 @@ func BenchmarkLevelDB(b *testing.B) {
 			leveldb := initLevelDB()
 			defer closeLevelDB(leveldb)
 
-			lDB := ldb.New(leveldb, codec.JsonCodec)
+			lDB := ldb.New(leveldb, codec.JSONCodec)
 			benchmarkDB(lDB)
 		}()
 	}
@@ -42,7 +42,7 @@ func BenchmarkLevelDBWithLRUCache(b *testing.B) {
 			leveldb := initLevelDB()
 			defer closeLevelDB(leveldb)
 
-			lru := lru.New(ldb.New(leveldb, codec.JsonCodec), cacheLimit)
+			lru := lru.New(ldb.New(leveldb, codec.JSONCodec), cacheLimit)
 			benchmarkDB(lru)
 		}()
 	}
@@ -54,7 +54,7 @@ func BenchmarkBadgerDB(b *testing.B) {
 			badgerDB := initBadgerDB()
 			defer closeBadgerDB(badgerDB)
 
-			bDB := bdb.New(badgerDB, codec.JsonCodec)
+			bDB := bdb.New(badgerDB, codec.JSONCodec)
 			benchmarkDB(bDB)
 		}()
 	}
@@ -66,7 +66,7 @@ func BenchmarkBadgerDBWithLRUCache(b *testing.B) {
 			badgerDB := initBadgerDB()
 			defer closeBadgerDB(badgerDB)
 
-			lru := lru.New(bdb.New(badgerDB, codec.JsonCodec), cacheLimit)
+			lru := lru.New(bdb.New(badgerDB, codec.JSONCodec), cacheLimit)
 			benchmarkDB(lru)
 		}()
 	}

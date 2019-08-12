@@ -5,7 +5,7 @@ import (
 	"github.com/renproject/kv/db"
 )
 
-// bdb is a badgerDB implementation of the `db.Iterable`.
+// badgerDB is a badgerDB implementation of the `db.Iterable`.
 type badgerDB struct {
 	db    *badger.DB
 	codec db.Codec

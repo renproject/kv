@@ -1,8 +1,13 @@
 package leveldb
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/renproject/kv/db"
 	"github.com/syndtr/goleveldb/leveldb"
+	levelIter "github.com/syndtr/goleveldb/leveldb/iterator"
+	"github.com/syndtr/goleveldb/leveldb/util"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -15,7 +20,7 @@ func KeyPrefix(hash [32]byte, key []byte) []byte {
 	return append(hash[:], key...)
 }
 
-// table is a levelDB implementation of the `db.Table`.
+// table is a leveldb implementation of the `db.Table`.
 type table struct {
 	hash  [32]byte
 	db    *leveldb.DB
@@ -41,7 +46,7 @@ func (t *table) Insert(key string, value interface{}) error {
 		return err
 	}
 
-	return convertErr(t.db.Put([]byte(KeyPrefix(t.hash, []byte(key))), data, nil))
+	return t.db.Put(KeyPrefix(t.hash, []byte(key)), data, nil)
 }
 
 // Get implements the `db.Table` interface.
@@ -50,106 +55,75 @@ func (t *table) Get(key string, value interface{}) error {
 		return db.ErrEmptyKey
 	}
 
-	val, err := t.db.Get([]byte(KeyPrefix(t.hash, []byte(key))), nil)
+	val, err := t.db.Get(KeyPrefix(t.hash, []byte(key)), nil)
 	if err != nil {
 		return convertErr(err)
 	}
-	return convertErr(t.codec.Decode(val, value))
+	return t.codec.Decode(val, value)
 }
 
 // Delete implements the `db.Table` interface.
 func (t *table) Delete(key string) error {
-	return convertErr(t.db.Delete([]byte(KeyPrefix(t.hash, []byte(key))), nil))
+	return t.db.Delete(KeyPrefix(t.hash, []byte(key)), nil)
 }
 
 // Size implements the `db.Table` interface.
 func (t *table) Size() (int, error) {
 	count := 0
-	// t.db.NewIterator(nil, &opt.ReadOptions{})
-	// err := t.db.
-	// 	opts := badger.DefaultIteratorOptions
-	// 	opts.Prefix = KeyPrefix(t.hash, []byte{})
-	// 	it := txn.NewIterator(opts)
-	// 	defer it.Close()
-	// 	for it.Rewind(); it.Valid(); it.Next() {
-	// 		count++
-	// 	}
-	// 	return nil
-	// })
-
+	iter := t.db.NewIterator(util.BytesPrefix(t.hash[:]), nil)
+	for iter.Next() {
+		count++
+	}
 	return count, nil
 }
 
 // Iterator implements the `db.Table` interface.
 func (t *table) Iterator() (db.Iterator, error) {
-	// tx := t.db.NewTransaction(false)
-	// opts := badger.DefaultIteratorOptions
-	// opts.Prefix = KeyPrefix(t.hash, nil)
-	// iter := tx.NewIterator(opts)
-	// iter.Rewind()
+	iter := t.db.NewIterator(util.BytesPrefix(t.hash[:]), nil)
 	return &iterator{
-		hash:       t.hash,
-		intialized: false,
-		closed:     false,
-		tx:         nil,
-		// iter:       nil,
+		hash:  t.hash,
+		iter:  iter,
 		codec: t.codec,
 	}, nil
 }
 
 // iterator implements the `db.Iterator` interface.
 type iterator struct {
-	hash       [32]byte
-	intialized bool
-	closed     bool
-	tx         *leveldb.Transaction
-	// iter       *leveldb.
+	hash  [32]byte
+	iter  levelIter.Iterator
 	codec db.Codec
 }
 
 // Next implements the `db.Iterator` interface.
 func (iter *iterator) Next() bool {
-	if iter.closed {
-		return false
+	next := iter.iter.Next()
+
+	// Release the iterator when it finishes iterating.
+	if !next {
+		iter.iter.Release()
 	}
-	if !iter.intialized {
-		iter.intialized = true
-	} else {
-		// iter.iter.Next()
-	}
-	// if valid := iter.iter.Valid(); !valid {
-	// 	iter.closed = true
-	// 	iter.iter.Close()
-	// 	iter.tx.Discard()
-	// 	return false
-	// }
-	return true
+	return next
 }
 
 // Key implements the `db.Iterator` interface.
 func (iter *iterator) Key() (string, error) {
-	// if !iter.intialized || iter.closed || !iter.iter.Valid() {
-	// 	return "", db.ErrIndexOutOfRange
-	// }
-	// key := iter.iter.Item().Key()
-	// if !bytes.HasPrefix(key, KeyPrefix(iter.hash, nil)) {
-	// 	return "", fmt.Errorf("invalid key = %x which doesn't have valid prefix", key)
-	// }
-	// return string(bytes.TrimPrefix(key, KeyPrefix(iter.hash, nil))), nil
-	return "", nil
+	key := iter.iter.Key()
+	if key == nil {
+		return "", db.ErrIndexOutOfRange
+	}
+	if !bytes.HasPrefix(key, KeyPrefix(iter.hash, nil)) {
+		return "", fmt.Errorf("invalid key = %x which doesn't have valid prefix", key)
+	}
+	return string(bytes.TrimPrefix(key, KeyPrefix(iter.hash, nil))), nil
 }
 
 // Value implements the `db.Iterator` interface.
 func (iter *iterator) Value(value interface{}) error {
-	// if !iter.intialized || iter.closed || !iter.iter.Valid() {
-	// 	return db.ErrIndexOutOfRange
-	// }
-	// data, err := iter.iter.Item().ValueCopy(nil)
-	// if err != nil {
-	// 	return err
-	// }
-	// return iter.codec.Decode(data, value)
-	return nil
+	val := iter.iter.Value()
+	if val == nil {
+		return db.ErrIndexOutOfRange
+	}
+	return iter.codec.Decode(val, value)
 }
 
 // convertErr will convert levelDB-specific error to kv error.

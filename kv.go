@@ -11,6 +11,7 @@ import (
 	"github.com/renproject/kv/cache/ttl"
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
+	"github.com/renproject/kv/leveldb"
 	"github.com/renproject/kv/memdb"
 )
 
@@ -32,31 +33,30 @@ var (
 )
 
 type (
-	// TODO: Comment!
+	// Table is a sql-like table for storing key-value pairs. It requires the key
+	// to be a non-empty string and the value has the type which can be marshaled
+	// and unmarshaled by the used Codec.
 	Table = db.Table
 
-	// TODO: Comment!
+	// DB is able to add new table and does operations on certain table by its name.
 	DB = db.DB
 
-	// TODO: Comment!
+	// Codec can encode and decode between arbitrary data object and bytes.
 	Codec = db.Codec
 
-	// TODO: Comment!
-	Iterator = db.Codec
+	// Iterator is used to iterate through the data in the store.
+	Iterator = db.Iterator
 )
 
 // In-memory implementation of the DB and table
 var (
 
-	// TODO: Comment!
+	// NewTable returns a in-memory implementation of the Table interface.
 	NewMemTable = memdb.NewTable
 
 	// NewMemDB returns a key-value database that is implemented in-memory. This
-	// implementation is fast, but does not store data on-disk. A time-to-live can
-	// be used to automatically delete key-value tuples after they have been in the
-	// database for more than a specific duration. A time-to-live of zero will keep
-	// key-value tuples until they are explicitly deleted. It is safe for concurrent
-	// use.
+	// implementation is fast, but does not store data on-disk. It is safe for
+	// concurrent use.
 	NewMemDB = memdb.New
 
 	// TODO: Comment!
@@ -66,9 +66,10 @@ var (
 	NewTTLCache = ttl.New
 )
 
-// BadgerDB implementation of the DB and table
+// BadgerDB implementation of the DB and table.
 var (
-	// TODO: Comment!
+	// NewBadgerTable returns a Table with a badgerDB implementation. It is safe for
+	// concurrent use.
 	NewBadgerTable = badgerdb.NewTable
 
 	// NewBadgerDB returns a key-value database that is implemented using
@@ -76,21 +77,24 @@ var (
 	NewBadgerDB = badgerdb.New
 )
 
+// LevelDB implementation of the DB and table.
 var (
-	// JsonCodec is a json codec that marshals and unmarshals values using the
+	// NewBadgerTable returns a Table with a leveldb implementation. It is safe for
+	// concurrent use.
+	NewLevelTable = leveldb.NewTable
+
+	// NewLevelDB returns a key-value database that is implemented using
+	// levelDB. For more information, see https://github.com/syndtr/goleveldb.
+	NewLevelDB = leveldb.New
+)
+
+var (
+	// JSONCodec is a json codec that marshals and unmarshals values using the
 	// standard Golang JSON marshalers. For more information, see
 	// https://golang.org/pkg/encoding/json.
-	JsonCodec = codec.JsonCodec
+	JSONCodec = codec.JSONCodec
 
 	// GobCodec is a gob codec that encodes and decodes values using gob. For
 	// more information, see https://golang.org/pkg/encoding/gob.
 	GobCodec = codec.GobCodec
 )
-
-// var (
-// 	// NewTTLCache returns a cache that wraps an underlying store. Keys that have
-// 	// no been accessed for the specified duration will be automatically deleted
-// 	// from the underlying store. It is safe for concurrent use, as long as the
-// 	// underlying store is also safe for concurrent use.
-// 	NewTTLCache = cache.NewTTL
-// )
