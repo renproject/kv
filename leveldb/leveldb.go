@@ -72,6 +72,7 @@ func (iter *Iterator) Next() bool {
 	next := iter.iter.Next()
 	if !next {
 		iter.inRange = false
+		iter.iter.Release()
 	}
 	return next
 }
