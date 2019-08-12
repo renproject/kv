@@ -42,43 +42,19 @@ var _ = Describe("in-memory LRU cache", func() {
 		codec := codecs[i]
 
 		Context("when creating table", func() {
-			It("should be able create a new table or getting existing ones", func() {
-				tableTest := func(name string) bool {
-					badgerDB := initDB()
-					defer closeDB(badgerDB)
-
-					lruDB := New(badgerdb.New(badgerDB), 100)
-
-					table, err := lruDB.NewTable(name, codec)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(table).ShouldNot(BeNil())
-
-					tableByName, err := lruDB.Table(name)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(tableByName).ShouldNot(BeNil())
-
-					return true
-				}
-
-				Expect(quick.Check(tableTest, nil)).NotTo(HaveOccurred())
-			})
-
 			It("should be able to read and write values to the db", func() {
 				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
 					badgerDB := initDB()
 					defer closeDB(badgerDB)
 
-					lruDB := New(badgerdb.New(badgerDB), 100)
-					table, err := lruDB.NewTable(name, codec)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(table).ShouldNot(BeNil())
+					lruDB := New(badgerdb.New(badgerDB, codec), 100)
 
 					// Make sure the key is not nil
 					if key == "" {
 						return true
 					}
 					val := testutil.TestStruct{D: []byte{}}
-					err = lruDB.Get(name, key, &val)
+					err := lruDB.Get(name, key, &val)
 					Expect(err).Should(Equal(db.ErrKeyNotFound))
 
 					// Should be able to read the value after inserting.
@@ -103,10 +79,7 @@ var _ = Describe("in-memory LRU cache", func() {
 					badgerDB := initDB()
 					defer closeDB(badgerDB)
 
-					lruDB := New(badgerdb.New(badgerDB), 100)
-					table, err := lruDB.NewTable(name, codec)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(table).ShouldNot(BeNil())
+					lruDB := New(badgerdb.New(badgerDB, codec), 100)
 
 					// Insert all values and make a map for validation.
 					allValues := map[string]testutil.TestStruct{}
@@ -144,79 +117,16 @@ var _ = Describe("in-memory LRU cache", func() {
 			})
 		})
 
-		Context("when doing operations on a non-exist table", func() {
-			It("should return ErrTableNotFound", func() {
-				test := func(name string, key string, value testutil.TestStruct) bool {
-					badgerDB := initDB()
-					defer closeDB(badgerDB)
-
-					lruDB := New(badgerdb.New(badgerDB), 100)
-
-					// Retrieve table
-					_, err := lruDB.Table(name)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Insert new key-value pair
-					err = lruDB.Insert(name, key, value)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Retrieve value
-					var val testutil.TestStruct
-					err = lruDB.Get(name, key, &val)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Delete data
-					err = lruDB.Delete(name, key)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Get size
-					_, err = lruDB.Size(name)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Get the iterator
-					_, err = lruDB.Iterator(name)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					return true
-				}
-
-				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
-			})
-		})
-
-		Context("when trying to create a table which already exist", func() {
-			It("should return ErrTableAlreadyExists error", func() {
-				test := func(name string) bool {
-					badgerDB := initDB()
-					defer closeDB(badgerDB)
-
-					lruDB := New(badgerdb.New(badgerDB), 100)
-					_, err := lruDB.NewTable(name, codec)
-					Expect(err).NotTo(HaveOccurred())
-
-					_, err = lruDB.NewTable(name, codec)
-					Expect(err).Should(Equal(db.ErrTableAlreadyExists))
-
-					return true
-				}
-
-				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
-			})
-		})
-
 		Context("when doing operations with empty keys", func() {
 			It("should return ErrEmptyKey error", func() {
 				test := func(name string, value testutil.TestStruct) bool {
 					badgerDB := initDB()
 					defer closeDB(badgerDB)
 
-					lruDB := New(badgerdb.New(badgerDB), 100)
-					_, err := lruDB.NewTable(name, codec)
-					Expect(err).NotTo(HaveOccurred())
+					lruDB := New(badgerdb.New(badgerDB, codec), 100)
 
 					Expect(lruDB.Insert(name, "", value)).Should(Equal(db.ErrEmptyKey))
 					Expect(lruDB.Get(name, "", value)).Should(Equal(db.ErrEmptyKey))
-					Expect(lruDB.Delete(name, "")).Should(Equal(db.ErrEmptyKey))
 
 					return true
 				}

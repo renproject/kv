@@ -9,6 +9,15 @@ import (
 	"github.com/renproject/kv/db"
 )
 
+var (
+	// Name of the table where we store the prune pointer.
+	PrunePointerTableName = "ttl_0"
+
+	// PrunePointerKey is the key of the key-value pair which we can use to
+	// query the current prune pointer.
+	PrunePointerKey = "prune_pointer"
+)
+
 type inMemTTL struct {
 	timeToLive    time.Duration
 	pruneInterval time.Duration
@@ -31,16 +40,6 @@ func New(ctx context.Context, database db.DB, timeToLive time.Duration, pruneInt
 	return &ttlDB, nil
 }
 
-// NewTable implements the `db.Table` interface.
-func (ttlDB *inMemTTL) NewTable(name string, codec db.Codec) (db.Table, error) {
-	return ttlDB.db.NewTable(name, codec)
-}
-
-// Table implements the `db.Table` interface.
-func (ttlDB *inMemTTL) Table(name string) (db.Table, error) {
-	return ttlDB.db.Table(name)
-}
-
 // Insert implements the `db.Table` interface.
 func (ttlDB *inMemTTL) Insert(name string, key string, value interface{}) error {
 
@@ -55,11 +54,7 @@ func (ttlDB *inMemTTL) Insert(name string, key string, value interface{}) error 
 	// Insert the current timestamp for future pruning.
 	slot := ttlDB.slotNo(time.Now())
 	slotTableName := fmt.Sprintf("ttl_%d", slot)
-	table, err := ttlDB.getTable(slotTableName)
-	if err != nil {
-		return err
-	}
-	return table.Insert(key, name)
+	return ttlDB.db.Insert(slotTableName, key, name)
 }
 
 // Get implements the `db.Table` interface.
@@ -111,9 +106,7 @@ func (ttlDB *inMemTTL) prune(ctx context.Context) {
 						slotTable := fmt.Sprintf("ttl_%d", slot)
 
 						iter, err := ttlDB.db.Iterator(slotTable)
-						if err == db.ErrTableNotFound {
-							continue
-						} else if err != nil {
+						if err != nil {
 							return err
 						}
 
@@ -122,19 +115,16 @@ func (ttlDB *inMemTTL) prune(ctx context.Context) {
 							if err != nil {
 								return err
 							}
-							var value string
-							if err := iter.Value(&value); err != nil {
+							var tableName string
+							if err := iter.Value(&tableName); err != nil {
 								return err
 							}
-							if err := ttlDB.db.Delete(value, key); err != nil {
-								if err != db.ErrTableNotFound {
-									return err
-								}
+
+							if err := ttlDB.db.Delete(tableName, key); err != nil {
+								return err
 							}
 							if err := ttlDB.db.Delete(slotTable, key); err != nil {
-								if err != db.ErrTableNotFound {
-									return err
-								}
+								return err
 							}
 						}
 					}
@@ -158,28 +148,11 @@ func (ttlDB *inMemTTL) slotNo(moment time.Time) int64 {
 // prunePointer returns the current prune pointer which all slots before or equals to
 // it have been pruned. It will initialize the pointer if the db is new.
 func (ttlDB *inMemTTL) prunePointer() (int64, error) {
-	table, err := ttlDB.getTable("ttl_0")
-	if err != nil {
-		return 0, err
-	}
-
 	var pointer int64
-	err = table.Get("pointer", &pointer)
+	err := ttlDB.db.Get(PrunePointerTableName, PrunePointerKey, &pointer)
 	if err == db.ErrKeyNotFound {
 		slot := ttlDB.slotNo(time.Now())
-		return slot - 1, table.Insert("pointer", slot-1)
+		return slot - 1, ttlDB.db.Insert(PrunePointerTableName, PrunePointerKey, slot-1)
 	}
 	return pointer, err
-}
-
-// getTable will get the table with given name from the underlying database. If
-// no such table exists, it will create a new one and return it.
-func (ttlDB *inMemTTL) getTable(name string) (db.Table, error) {
-	table, err := ttlDB.db.Table(name)
-	if err != nil {
-		if err == db.ErrTableNotFound {
-			return ttlDB.db.NewTable(name, ttlDB.codec)
-		}
-	}
-	return table, err
 }
