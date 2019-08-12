@@ -128,20 +128,9 @@ Creating a DB:
 
 ```
 
-Creating new tables or accessing existing ones 
-```go
-	table, err := db.NewTable("name", kv.JsonCodec)
-	handle(err)
-	
-	table, err = db.Table("table-name")
-
-```
-
 Read/Write directly though the DB 
 ```go
 	db := kv.NewBadgerDB(bdb)
-	_, err := db.NewTable("name", kv.JsonCodec)
-	handle(err)
 	err = db.Insert("name", "key", "value")
 	handle(err)
 	var value string
