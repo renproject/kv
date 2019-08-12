@@ -96,7 +96,6 @@ var _ = Describe("badger DB implementation of the db", func() {
 					iter, err := badgerDB.Iterator(name)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(iter).ShouldNot(BeNil())
-					
 
 					for iter.Next() {
 						key, err := iter.Key()

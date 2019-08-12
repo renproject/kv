@@ -1,6 +1,7 @@
 package ttl_test
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing/quick"
@@ -28,7 +29,9 @@ var _ = Describe("in-memory LRU cache", func() {
 		Context("when creating table", func() {
 			It("should be able create a new table or getting existing ones", func() {
 				tableTest := func(name string) bool {
-					ttlDB, err := New(memdb.New(), time.Second, 100*time.Millisecond, codec)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					ttlDB, err := New(ctx, memdb.New(), time.Second, 100*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 
 					table, err := ttlDB.NewTable(name, codec)
@@ -47,7 +50,9 @@ var _ = Describe("in-memory LRU cache", func() {
 
 			It("should be able to read and write values to the db", func() {
 				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
-					ttlDB, err := New(memdb.New(), 10*time.Second, 5*time.Second, codec)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					ttlDB, err := New(ctx, memdb.New(), 10*time.Second, 5*time.Second, codec)
 					Expect(err).NotTo(HaveOccurred())
 					table, err := ttlDB.NewTable(name, codec)
 					Expect(err).NotTo(HaveOccurred())
@@ -71,7 +76,6 @@ var _ = Describe("in-memory LRU cache", func() {
 					Expect(ttlDB.Delete(name, key)).NotTo(HaveOccurred())
 					err = ttlDB.Get(name, key, &val)
 					Expect(err).Should(Equal(db.ErrKeyNotFound))
-
 					return true
 				}
 
@@ -80,7 +84,9 @@ var _ = Describe("in-memory LRU cache", func() {
 
 			It("should be able to iterate through the db using the iterator", func() {
 				iteration := func(name string, values []testutil.TestStruct) bool {
-					ttlDB, err := New(memdb.New(), time.Second, 100*time.Millisecond, codec)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					ttlDB, err := New(ctx, memdb.New(), time.Second, 100*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 					table, err := ttlDB.NewTable(name, codec)
 					Expect(err).NotTo(HaveOccurred())
@@ -125,7 +131,9 @@ var _ = Describe("in-memory LRU cache", func() {
 		Context("when doing operations on a non-exist table", func() {
 			It("should return ErrTableNotFound", func() {
 				test := func(name string, key string, value testutil.TestStruct) bool {
-					ttlDB, err := New(memdb.New(), time.Second, 100*time.Millisecond, codec)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					ttlDB, err := New(ctx, memdb.New(), time.Second, 100*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 
 					// Retrieve table
@@ -168,7 +176,9 @@ var _ = Describe("in-memory LRU cache", func() {
 		Context("when trying to create a table which already exist", func() {
 			It("should return ErrTableAlreadyExists error", func() {
 				test := func(name string) bool {
-					ttlDB, err := New(memdb.New(), time.Second, 100*time.Millisecond, codec)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					ttlDB, err := New(ctx, memdb.New(), time.Second, 100*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 					_, err = ttlDB.NewTable(name, codec)
 					Expect(err).NotTo(HaveOccurred())
@@ -186,7 +196,9 @@ var _ = Describe("in-memory LRU cache", func() {
 		Context("when doing operations with empty keys", func() {
 			It("should return ErrEmptyKey error", func() {
 				test := func(name string, value testutil.TestStruct) bool {
-					ttlDB, err := New(memdb.New(), time.Second, 100*time.Millisecond, codec)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					ttlDB, err := New(ctx, memdb.New(), time.Second, 100*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 					_, err = ttlDB.NewTable(name, codec)
 					Expect(err).NotTo(HaveOccurred())
@@ -208,8 +220,9 @@ var _ = Describe("in-memory LRU cache", func() {
 					if key == "" {
 						return true
 					}
-
-					ttlDB, err := New(memdb.New(), time.Second, 500*time.Millisecond, codec)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					ttlDB, err := New(ctx, memdb.New(), 200*time.Millisecond, 100*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 					_, err = ttlDB.NewTable(name, codec)
 					Expect(err).NotTo(HaveOccurred())
@@ -236,7 +249,9 @@ var _ = Describe("in-memory LRU cache", func() {
 						return true
 					}
 
-					ttlDB, err := New(memdb.New(), time.Second, 500*time.Millisecond, codec)
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+					ttlDB, err := New(ctx, memdb.New(), 200*time.Millisecond, 100*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 					_, err = ttlDB.NewTable(name, codec)
 					Expect(err).NotTo(HaveOccurred())
