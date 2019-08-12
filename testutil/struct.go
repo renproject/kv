@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var Ran = rand.New(rand.NewSource(time.Now().Unix()))
+var ran = rand.New(rand.NewSource(time.Now().Unix()))
 
 // TestStruct is a struct which includes some commonly used types.
 type TestStruct struct {
@@ -21,7 +21,7 @@ type TestStruct struct {
 // RandomTestStruct returns a random `TestStruct`
 func RandomTestStruct() TestStruct {
 	t := reflect.TypeOf(TestStruct{})
-	value, ok := quick.Value(t, Ran)
+	value, ok := quick.Value(t, ran)
 	if !ok {
 		panic("cannot create random test struct")
 	}
@@ -49,7 +49,7 @@ func RandomNonDupStrings(i int) []string {
 
 	for len(res) < cap {
 		t := reflect.TypeOf("")
-		value, ok := quick.Value(t, Ran)
+		value, ok := quick.Value(t, ran)
 		if !ok {
 			panic("cannot create random test struct")
 		}

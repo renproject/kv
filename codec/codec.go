@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 )
 
-var JsonCodec jsonCodec
+// JSONCodec is a JSON implementation of the `db.Codec`.
+var JSONCodec jsonCodec
 
-// jsonCodec is a json implementation of the `db.Codec`. It encodes and decodes
-// data using the json standard.
+// jsonCodec is a JSON implementation of the `db.Codec`. It encodes and decodes
+// data using the JSON standard.
 type jsonCodec struct{}
 
 // Encode implements the `db.Codec`
@@ -26,6 +27,7 @@ func (jsonCodec) String() string {
 	return "json"
 }
 
+// GobCodec is a gob implementation of the `db.Codec`.
 var GobCodec gobCodec
 
 // gobCodec is a gob implementation of the `db.Codec`. It encodes and decodes
