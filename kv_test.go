@@ -30,7 +30,7 @@ func BenchmarkLevelDB(b *testing.B) {
 			leveldb := initLevelDB()
 			defer closeLevelDB(leveldb)
 
-			lDB := ldb.New(leveldb)
+			lDB := ldb.New(leveldb, codec.JsonCodec)
 			benchmarkDB(lDB)
 		}()
 	}
@@ -42,7 +42,7 @@ func BenchmarkLevelDBWithLRUCache(b *testing.B) {
 			leveldb := initLevelDB()
 			defer closeLevelDB(leveldb)
 
-			lru := lru.New(ldb.New(leveldb), cacheLimit)
+			lru := lru.New(ldb.New(leveldb, codec.JsonCodec), cacheLimit)
 			benchmarkDB(lru)
 		}()
 	}
@@ -54,7 +54,7 @@ func BenchmarkBadgerDB(b *testing.B) {
 			badgerDB := initBadgerDB()
 			defer closeBadgerDB(badgerDB)
 
-			bDB := bdb.New(badgerDB)
+			bDB := bdb.New(badgerDB, codec.JsonCodec)
 			benchmarkDB(bDB)
 		}()
 	}
@@ -66,7 +66,7 @@ func BenchmarkBadgerDBWithLRUCache(b *testing.B) {
 			badgerDB := initBadgerDB()
 			defer closeBadgerDB(badgerDB)
 
-			lru := lru.New(bdb.New(badgerDB), cacheLimit)
+			lru := lru.New(bdb.New(badgerDB, codec.JsonCodec), cacheLimit)
 			benchmarkDB(lru)
 		}()
 	}
@@ -75,10 +75,6 @@ func BenchmarkBadgerDBWithLRUCache(b *testing.B) {
 func benchmarkDB(database db.DB) {
 	name := "testDB"
 	key := "testKey"
-
-	table, err := database.NewTable(name, codec.GobCodec)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(table).ShouldNot(BeNil())
 
 	vals := make([]testutil.TestStruct, benchmarkWrites)
 
@@ -92,7 +88,7 @@ func benchmarkDB(database db.DB) {
 		queryIndex := rand.Intn(benchmarkWrites)
 		queryKey := key + string(queryIndex)
 		val := testutil.TestStruct{D: []byte{}}
-		err = database.Get(name, queryKey, &val)
+		err := database.Get(name, queryKey, &val)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(reflect.DeepEqual(val, vals[queryIndex])).Should(BeTrue())
 	}
