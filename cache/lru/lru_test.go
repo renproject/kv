@@ -2,7 +2,6 @@ package lru_test
 
 import (
 	"fmt"
-	"os/exec"
 	"reflect"
 	"testing/quick"
 
@@ -10,10 +9,9 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/kv/cache/lru"
 
-	"github.com/dgraph-io/badger"
-	"github.com/renproject/kv/badgerdb"
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
+	"github.com/renproject/kv/leveldb"
 	"github.com/renproject/kv/testutil"
 )
 
@@ -23,20 +21,6 @@ var codecs = []db.Codec{
 }
 
 var _ = Describe("in-memory LRU cache", func() {
-	initDB := func() *badger.DB {
-		Expect(exec.Command("mkdir", "-p", ".badgerdb").Run()).NotTo(HaveOccurred())
-		opts := badger.DefaultOptions("./.badgerdb")
-		opts.Dir = "./.badgerdb"
-		opts.ValueDir = "./.badgerdb"
-		db, err := badger.Open(opts.WithLogger(nil))
-		Expect(err).NotTo(HaveOccurred())
-		return db
-	}
-
-	closeDB := func(db *badger.DB) {
-		Expect(db.Close()).NotTo(HaveOccurred())
-		Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
-	}
 
 	for i := range codecs {
 		codec := codecs[i]
@@ -44,10 +28,7 @@ var _ = Describe("in-memory LRU cache", func() {
 		Context("when creating table", func() {
 			It("should be able to read and write values to the db", func() {
 				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
-					badgerDB := initDB()
-					defer closeDB(badgerDB)
-
-					lruDB := New(badgerdb.New(badgerDB, codec), 100)
+					lruDB := New(leveldb.New(ldb, codec), 100)
 
 					// Make sure the key is not nil
 					if key == "" {
@@ -76,10 +57,7 @@ var _ = Describe("in-memory LRU cache", func() {
 
 			It("should be able to iterable through the db using the iterator", func() {
 				iteration := func(name string, values []testutil.TestStruct) bool {
-					badgerDB := initDB()
-					defer closeDB(badgerDB)
-
-					lruDB := New(badgerdb.New(badgerDB, codec), 100)
+					lruDB := New(leveldb.New(ldb, codec), 100)
 
 					// Insert all values and make a map for validation.
 					allValues := map[string]testutil.TestStruct{}
@@ -109,6 +87,7 @@ var _ = Describe("in-memory LRU cache", func() {
 						Expect(ok).Should(BeTrue())
 						Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
 						delete(allValues, key)
+						Expect(lruDB.Delete(name, key))
 					}
 					return len(allValues) == 0
 				}
@@ -120,10 +99,7 @@ var _ = Describe("in-memory LRU cache", func() {
 		Context("when doing operations with empty keys", func() {
 			It("should return ErrEmptyKey error", func() {
 				test := func(name string, value testutil.TestStruct) bool {
-					badgerDB := initDB()
-					defer closeDB(badgerDB)
-
-					lruDB := New(badgerdb.New(badgerDB, codec), 100)
+					lruDB := New(leveldb.New(ldb, codec), 100)
 
 					Expect(lruDB.Insert(name, "", value)).Should(Equal(db.ErrEmptyKey))
 					Expect(lruDB.Get(name, "", value)).Should(Equal(db.ErrEmptyKey))
