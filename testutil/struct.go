@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"bytes"
 	"math/rand"
 	"reflect"
 	"testing/quick"
@@ -24,6 +25,19 @@ func RandomTestStruct() TestStruct {
 		panic("cannot create random test struct")
 	}
 	return value.Interface().(TestStruct)
+}
+
+func (testStruct *TestStruct) Equal(other TestStruct) bool {
+	if len(testStruct.E) != len(other.E) {
+		return false
+	}
+	for key, val := range testStruct.E {
+		otherVal, ok := other.E[key]
+		if !ok || otherVal != val {
+			return false
+		}
+	}
+	return testStruct.A == other.A && testStruct.B == other.B && testStruct.C == other.C && bytes.Equal(testStruct.D, other.D)
 }
 
 func RandomTestStructGroups(group, entriesPerGroup int) [][]TestStruct {

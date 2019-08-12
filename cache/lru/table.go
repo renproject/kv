@@ -13,7 +13,7 @@ type table struct {
 	dbTable db.Table
 }
 
-// New returns a new table.
+// NewTable returns a new table that wraps a `db.Table` along with an LRU cache.
 func NewTable(dbTable db.Table, maxEntries int) db.Table {
 	return &table{
 		lru:     lru.New(maxEntries),

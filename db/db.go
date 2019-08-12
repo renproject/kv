@@ -54,11 +54,6 @@ type Table interface {
 // DB for storing key-value tuples. The key must be a string and the value must
 // be a byte slice.
 type DB interface {
-	// Creates a new table in the DB with given name and Codec.
-	NewTable(name string, codec Codec) (Table, error)
-
-	// Table returns the table with the given name.
-	Table(name string) (Table, error)
 
 	// Insert the key, value pair into the table with given name. It will return
 	// ErrTableNotFound if the table doesn't exist. It will return `ErrEmptyKey`
