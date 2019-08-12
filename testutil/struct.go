@@ -29,6 +29,7 @@ func RandomTestStruct() TestStruct {
 	return value.Interface().(TestStruct)
 }
 
+// Equal compares the two struct and returns if they are the same.
 func (testStruct *TestStruct) Equal(other TestStruct) bool {
 	if len(testStruct.E) != len(other.E) {
 		return false

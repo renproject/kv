@@ -22,37 +22,8 @@ func New(codec db.Codec) db.DB {
 	}
 }
 
-// Insert implements the `db.DB` interface.
-func (memdb *memdb) Insert(name string, key string, value interface{}) error {
-	table := memdb.table(name)
-	return table.Insert(key, value)
-}
-
-// Get implements the `db.DB` interface.
-func (memdb *memdb) Get(name string, key string, value interface{}) error {
-	table := memdb.table(name)
-	return table.Get(key, value)
-}
-
-// Delete implements the `db.DB` interface.
-func (memdb *memdb) Delete(name string, key string) error {
-	table := memdb.table(name)
-	return table.Delete(key)
-}
-
-// Size implements the `db.DB` interface.
-func (memdb *memdb) Size(name string) (int, error) {
-	table := memdb.table(name)
-	return table.Size()
-}
-
-// Iterator implements the `db.DB` interface.
-func (memdb *memdb) Iterator(name string) (db.Iterator, error) {
-	table := memdb.table(name)
-	return table.Iterator()
-}
-
-func (memdb *memdb) table(name string) db.Table {
+// table implements the `db.DB` interface.
+func (memdb *memdb) Table(name string) db.Table {
 	memdb.mu.Lock()
 	defer memdb.mu.Unlock()
 
@@ -62,4 +33,34 @@ func (memdb *memdb) table(name string) db.Table {
 		memdb.tables[name] = table
 	}
 	return table
+}
+
+// Insert implements the `db.DB` interface.
+func (memdb *memdb) Insert(name string, key string, value interface{}) error {
+	table := memdb.Table(name)
+	return table.Insert(key, value)
+}
+
+// Get implements the `db.DB` interface.
+func (memdb *memdb) Get(name string, key string, value interface{}) error {
+	table := memdb.Table(name)
+	return table.Get(key, value)
+}
+
+// Delete implements the `db.DB` interface.
+func (memdb *memdb) Delete(name string, key string) error {
+	table := memdb.Table(name)
+	return table.Delete(key)
+}
+
+// Size implements the `db.DB` interface.
+func (memdb *memdb) Size(name string) (int, error) {
+	table := memdb.Table(name)
+	return table.Size()
+}
+
+// Iterator implements the `db.DB` interface.
+func (memdb *memdb) Iterator(name string) (db.Iterator, error) {
+	table := memdb.Table(name)
+	return table.Iterator()
 }

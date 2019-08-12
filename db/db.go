@@ -16,9 +16,6 @@ var ErrIndexOutOfRange = errors.New("iterator index out of range")
 // ErrTableAlreadyExists is returned when the table with given name is already exists in the db.
 var ErrTableAlreadyExists = errors.New("table already exists")
 
-// ErrTableNotFound is returned when there is no table with given name.
-var ErrTableNotFound = errors.New("table not found")
-
 // Codec can encode and decode between arbitrary data object and bytes.
 type Codec interface {
 
@@ -36,21 +33,21 @@ type Codec interface {
 // and unmarshaled by the used Codec.
 type Table interface {
 
-	// Insert writes the key-value into the Table.
+	// Insert writes the key-value into the table.
 	Insert(key string, value interface{}) error
 
 	// Get the value associated with the given key. This function returns
 	// ErrKeyNotFound if the key cannot be found.
 	Get(key string, value interface{}) error
 
-	// Delete the value with the given key from the Table. It is safe to use
-	// this function to delete a key which is not in the Table.
+	// Delete the value with the given key from the table. It is safe to use
+	// this function to delete a key which is not in the table.
 	Delete(key string) error
 
-	// Size returns the number of data entries in the Table.
+	// Size returns the number of data entries in the table.
 	Size() (int, error)
 
-	// Iterator returns an iterator that can iterate over Table.
+	// Iterator returns an iterator that can iterate over table.
 	Iterator() (Iterator, error)
 }
 

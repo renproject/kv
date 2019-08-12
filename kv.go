@@ -51,7 +51,7 @@ type (
 // In-memory implementation of the DB and table
 var (
 
-	// NewTable returns a in-memory implementation of the Table interface.
+	// NewTable returns a in-memory implementation of the table interface.
 	NewMemTable = memdb.NewTable
 
 	// NewMemDB returns a key-value database that is implemented in-memory. This
@@ -68,7 +68,7 @@ var (
 
 // BadgerDB implementation of the DB and table.
 var (
-	// NewBadgerTable returns a Table with a badgerDB implementation. It is safe for
+	// NewBadgerTable returns a table with a badgerDB implementation. It is safe for
 	// concurrent use.
 	NewBadgerTable = badgerdb.NewTable
 
@@ -79,7 +79,7 @@ var (
 
 // LevelDB implementation of the DB and table.
 var (
-	// NewBadgerTable returns a Table with a leveldb implementation. It is safe for
+	// NewBadgerTable returns a table with a leveldb implementation. It is safe for
 	// concurrent use.
 	NewLevelTable = leveldb.NewTable
 

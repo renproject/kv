@@ -106,8 +106,8 @@ Iterating through the table
 ```
 
 ### DB
-DB is a collection of tables. It is useful when you want to have multiple tables and using the same underlying database instance. (i.e. same badgerDB file). You can create new tables in the DB or accessing existing table by the table name.
-DB is also concurrent safe to use as long as the table is. There're helper functions which allow you to manipulate on
+DB is a collection of tables. It is useful when you want to have multiple tables and use the same underlying database instance. (i.e. same badgerDB file). You can create new tables in the DB or accessing existing table by the table name.
+DB is also concurrent safe to use as long as the underlying implementation is. There're helper functions which allow you to manipulate on
 a specific table of the DB directly. Or your can get the table by it's name and calling functions from the table.
 
 Creating a DB:
@@ -118,17 +118,17 @@ Creating a DB:
     // LevelDB implementation 
     ldb, err = leveldb.OpenFile("./.leveldb", nil)
     handle(err)
-    db := kv.NewLevelDB(ldb)
+    db := kv.NewLevelDB(ldb, kv.JsonCodec)
 
 	// BadgerDB implementation 
 	bdb, err:= badger.Open(badger.DefaultOptions("."))
 	handle(err)
-	db := kv.NewBadgerDB(bdb)
+	db := kv.NewBadgerDB(bdb, kv.JsonCodec)
 	
 
 ```
 
-Read/Write directly though the DB 
+Read/Write directly though the DB. (It will initialize an empty table if the table of given name doesn't exist.)
 ```go
 	db := kv.NewBadgerDB(bdb)
 	err = db.Insert("name", "key", "value")

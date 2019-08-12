@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	// Name of the table where we store the prune pointer.
+	// PrunePointerTableName is the name of the table where we store the prune pointer.
 	PrunePointerTableName = "ttl_0"
 
 	// PrunePointerKey is the key of the key-value pair which we can use to
@@ -40,7 +40,7 @@ func New(ctx context.Context, database db.DB, timeToLive time.Duration, pruneInt
 	return &ttlDB, nil
 }
 
-// Insert implements the `db.Table` interface.
+// Insert implements the `db.table` interface.
 func (ttlDB *inMemTTL) Insert(name string, key string, value interface{}) error {
 
 	// Insert the new data entry into the underlying DB.
@@ -57,7 +57,7 @@ func (ttlDB *inMemTTL) Insert(name string, key string, value interface{}) error 
 	return ttlDB.db.Insert(slotTableName, key, name)
 }
 
-// Get implements the `db.Table` interface.
+// Get implements the `db.table` interface.
 func (ttlDB *inMemTTL) Get(name string, key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -66,7 +66,7 @@ func (ttlDB *inMemTTL) Get(name string, key string, value interface{}) error {
 	return ttlDB.db.Get(name, key, value)
 }
 
-// Delete implements the `db.Table` interface.
+// Delete implements the `db.table` interface.
 func (ttlDB *inMemTTL) Delete(name string, key string) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -75,12 +75,12 @@ func (ttlDB *inMemTTL) Delete(name string, key string) error {
 	return ttlDB.db.Delete(name, key)
 }
 
-// Size implements the `db.Table` interface.
+// Size implements the `db.table` interface.
 func (ttlDB *inMemTTL) Size(name string) (int, error) {
 	return ttlDB.db.Size(name)
 }
 
-// Iterator implements the `db.Table` interface.
+// Iterator implements the `db.table` interface.
 func (ttlDB *inMemTTL) Iterator(name string) (db.Iterator, error) {
 	return ttlDB.db.Iterator(name)
 }

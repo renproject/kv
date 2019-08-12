@@ -18,14 +18,14 @@ func KeyPrefix(hash [32]byte, key []byte) []byte {
 	return append(hash[:], key...)
 }
 
-// table is a badgerDB implementation of the `db.Table`.
+// table is a badgerDB implementation of the `db.table`.
 type table struct {
 	hash  [32]byte
 	db    *badger.DB
 	codec db.Codec
 }
 
-// NewTable returns a new badgerDB implementation of the `db.Table`.
+// NewTable returns a new badgerDB implementation of the `db.table`.
 func NewTable(name string, bdb *badger.DB, codec db.Codec) db.Table {
 	return &table{
 		hash:  sha3.Sum256([]byte(name)),
@@ -34,7 +34,7 @@ func NewTable(name string, bdb *badger.DB, codec db.Codec) db.Table {
 	}
 }
 
-// Insert implements the `db.Table` interface.
+// Insert implements the `db.table` interface.
 func (t *table) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -50,7 +50,7 @@ func (t *table) Insert(key string, value interface{}) error {
 	return convertErr(err)
 }
 
-// Get implements the `db.Table` interface.
+// Get implements the `db.table` interface.
 func (t *table) Get(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -71,7 +71,7 @@ func (t *table) Get(key string, value interface{}) error {
 	return convertErr(err)
 }
 
-// Delete implements the `db.Table` interface.
+// Delete implements the `db.table` interface.
 func (t *table) Delete(key string) error {
 	err := t.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(KeyPrefix(t.hash, []byte(key))))
@@ -80,7 +80,7 @@ func (t *table) Delete(key string) error {
 	return convertErr(err)
 }
 
-// Size implements the `db.Table` interface.
+// Size implements the `db.table` interface.
 func (t *table) Size() (int, error) {
 	count := 0
 	err := t.db.View(func(txn *badger.Txn) error {
@@ -97,7 +97,7 @@ func (t *table) Size() (int, error) {
 	return count, err
 }
 
-// Iterator implements the `db.Table` interface.
+// Iterator implements the `db.table` interface.
 func (t *table) Iterator() (db.Iterator, error) {
 	tx := t.db.NewTransaction(false)
 	opts := badger.DefaultIteratorOptions

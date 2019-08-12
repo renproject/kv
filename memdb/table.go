@@ -6,7 +6,7 @@ import (
 	"github.com/renproject/kv/db"
 )
 
-// table is a in-memory implementation of the `db.Table`.
+// table is a in-memory implementation of the `db.table`.
 type table struct {
 	mu    *sync.RWMutex
 	data  map[string][]byte
@@ -22,7 +22,7 @@ func NewTable(codec db.Codec) db.Table {
 	}
 }
 
-// Insert implements the `db.Table` interface.
+// Insert implements the `db.table` interface.
 func (table *table) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -39,7 +39,7 @@ func (table *table) Insert(key string, value interface{}) error {
 	return nil
 }
 
-// Get implements the `db.Table` interface.
+// Get implements the `db.table` interface.
 func (table *table) Get(key string, value interface{}) error {
 	table.mu.RLock()
 	defer table.mu.RUnlock()
@@ -54,7 +54,7 @@ func (table *table) Get(key string, value interface{}) error {
 	return table.codec.Decode(val, value)
 }
 
-// Delete implements the `db.Table` interface.
+// Delete implements the `db.table` interface.
 func (table *table) Delete(key string) error {
 	table.mu.Lock()
 	defer table.mu.Unlock()
@@ -63,7 +63,7 @@ func (table *table) Delete(key string) error {
 	return nil
 }
 
-// Size implements the `db.Table` interface.
+// Size implements the `db.table` interface.
 func (table *table) Size() (int, error) {
 	table.mu.RLock()
 	defer table.mu.RUnlock()
@@ -71,7 +71,7 @@ func (table *table) Size() (int, error) {
 	return len(table.data), nil
 }
 
-// Iterator implements the `db.Table` interface.
+// Iterator implements the `db.table` interface.
 func (table *table) Iterator() (db.Iterator, error) {
 	table.mu.RLock()
 	defer table.mu.RUnlock()
