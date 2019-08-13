@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// KeyPrefix add hash of the table name to the key so that data entries are
+// KeyPrefix add hash of the Table name to the key so that data entries are
 // categorised into different tables.
 func KeyPrefix(hash [32]byte, key []byte) []byte {
 	if key == nil {
@@ -20,14 +20,14 @@ func KeyPrefix(hash [32]byte, key []byte) []byte {
 	return append(hash[:], key...)
 }
 
-// table is a leveldb implementation of the `db.table`.
+// Table is a leveldb implementation of the `db.Table`.
 type table struct {
 	hash  [32]byte
 	db    *leveldb.DB
 	codec db.Codec
 }
 
-// NewTable returns a new levelDB implementation of the `db.table`.
+// NewTable returns a new levelDB implementation of the `db.Table`.
 func NewTable(name string, ldb *leveldb.DB, codec db.Codec) db.Table {
 	if codec == nil {
 		panic("codec cannot be nil")
@@ -39,7 +39,7 @@ func NewTable(name string, ldb *leveldb.DB, codec db.Codec) db.Table {
 	}
 }
 
-// Insert implements the `db.table` interface.
+// Insert implements the `db.Table` interface.
 func (t *table) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -52,7 +52,7 @@ func (t *table) Insert(key string, value interface{}) error {
 	return t.db.Put(KeyPrefix(t.hash, []byte(key)), data, nil)
 }
 
-// Get implements the `db.table` interface.
+// Get implements the `db.Table` interface.
 func (t *table) Get(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -65,7 +65,7 @@ func (t *table) Get(key string, value interface{}) error {
 	return t.codec.Decode(val, value)
 }
 
-// Delete implements the `db.table` interface.
+// Delete implements the `db.Table` interface.
 func (t *table) Delete(key string) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -73,7 +73,7 @@ func (t *table) Delete(key string) error {
 	return t.db.Delete(KeyPrefix(t.hash, []byte(key)), nil)
 }
 
-// Size implements the `db.table` interface.
+// Size implements the `db.Table` interface.
 func (t *table) Size() (int, error) {
 	count := 0
 	iter := t.db.NewIterator(util.BytesPrefix(t.hash[:]), nil)
@@ -84,7 +84,7 @@ func (t *table) Size() (int, error) {
 	return count, nil
 }
 
-// Iterator implements the `db.table` interface.
+// Iterator implements the `db.Table` interface.
 func (t *table) Iterator() (db.Iterator, error) {
 	iter := t.db.NewIterator(util.BytesPrefix(t.hash[:]), nil)
 	return &iterator{

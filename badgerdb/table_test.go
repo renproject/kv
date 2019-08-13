@@ -21,12 +21,12 @@ var codecs = []db.Codec{
 	codec.GobCodec,
 }
 
-var _ = Describe("badger db implementation of the table", func() {
+var _ = Describe("badger db implementation of the Table", func() {
 
-	Context("when creating a table", func() {
+	Context("when creating a Table", func() {
 		It("should failed when passing a nil codec", func() {
 			Expect(func() {
-				NewTable("table", bdb, nil)
+				NewTable("Table", bdb, nil)
 			}).Should(Panic())
 		})
 	})
@@ -108,7 +108,7 @@ var _ = Describe("badger db implementation of the table", func() {
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 			})
 
-			It("should return a iterator which only has the view of the table at the time been created", func() {
+			It("should return a iterator which only has the view of the Table at the time been created", func() {
 				iteration := func(name string, values []testutil.TestStruct) bool {
 					table := NewTable(name, bdb, codec)
 
@@ -190,7 +190,7 @@ var _ = Describe("badger db implementation of the table", func() {
 							return err
 						}
 						if !reflect.DeepEqual(val, value) {
-							return errors.New("fail to get value from table")
+							return errors.New("fail to get value from Table")
 						}
 						return nil
 					}()).ShouldNot(Succeed())

@@ -52,6 +52,7 @@ type Table interface {
 // with the same underlying database driver. It will automatically creat a new
 // table when first time writing to it.
 type DB interface {
+	Table(name string) Table
 
 	// Insert the key-value pair into the table with given name. It will
 	// return `ErrEmptyKey` if the key is empty.

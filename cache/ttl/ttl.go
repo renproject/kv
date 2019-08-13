@@ -40,6 +40,10 @@ func New(ctx context.Context, database db.DB, timeToLive time.Duration, pruneInt
 	return &ttlDB, nil
 }
 
+func (ttlDB *inMemTTL) Table(name string) db.Table {
+	return ttlDB.db.Table(name)
+}
+
 // Insert implements the `db.table` interface.
 func (ttlDB *inMemTTL) Insert(name string, key string, value interface{}) error {
 

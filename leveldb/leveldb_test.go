@@ -21,7 +21,7 @@ var _ = Describe("level DB implementation of the db", func() {
 	for i := range codecs {
 		codec := codecs[i]
 
-		Context("when operating on a single table", func() {
+		Context("when operating on a single Table", func() {
 			It("should be able to iterable through the db using the iterator", func() {
 				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
 					levelDB := New(ldb, codec)
@@ -113,14 +113,14 @@ var _ = Describe("level DB implementation of the db", func() {
 								}
 							}
 
-							// Check the size function returning the right size of the table.
+							// Check the size function returning the right size of the Table.
 							size, err := levelDB.Size(names[i])
 							if err != nil {
 								return err
 
 							}
 							if size != len(entries) {
-								return fmt.Errorf("test failed, unexpected table size, expect = %v, got = %v", len(entries), size)
+								return fmt.Errorf("test failed, unexpected Table size, expect = %v, got = %v", len(entries), size)
 							}
 
 							// Retrieve all data entries
@@ -132,7 +132,7 @@ var _ = Describe("level DB implementation of the db", func() {
 
 								}
 								if !reflect.DeepEqual(storedEntry, entry) {
-									return fmt.Errorf("fail to retrieve data from the table %v", names[i])
+									return fmt.Errorf("fail to retrieve data from the Table %v", names[i])
 								}
 								Expect(levelDB.Delete(names[i], fmt.Sprintf("%v", j))).Should(Succeed())
 							}
@@ -147,7 +147,7 @@ var _ = Describe("level DB implementation of the db", func() {
 				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 			})
 
-			It("should working properly when iterating each table at the same time", func() {
+			It("should working properly when iterating each Table at the same time", func() {
 				iteration := func() bool {
 					levelDB := New(ldb, codec)
 					names := testutil.RandomNonDupStrings(20)

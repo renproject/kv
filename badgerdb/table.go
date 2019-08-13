@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// KeyPrefix add hash of the table name to the key so that data entries are
+// KeyPrefix add hash of the Table name to the key so that data entries are
 // categorised into different tables.
 func KeyPrefix(hash [32]byte, key []byte) []byte {
 	if key == nil {
@@ -18,14 +18,14 @@ func KeyPrefix(hash [32]byte, key []byte) []byte {
 	return append(hash[:], key...)
 }
 
-// table is a badgerDB implementation of the `db.table`.
+// Table is a badgerDB implementation of the `db.Table`.
 type table struct {
 	hash  [32]byte
 	db    *badger.DB
 	codec db.Codec
 }
 
-// NewTable returns a new badgerDB implementation of the `db.table`.
+// NewTable returns a new badgerDB implementation of the `db.Table`.
 func NewTable(name string, bdb *badger.DB, codec db.Codec) db.Table {
 	if codec == nil {
 		panic("codec cannot be nil")
@@ -37,7 +37,7 @@ func NewTable(name string, bdb *badger.DB, codec db.Codec) db.Table {
 	}
 }
 
-// Insert implements the `db.table` interface.
+// Insert implements the `db.Table` interface.
 func (t *table) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -53,7 +53,7 @@ func (t *table) Insert(key string, value interface{}) error {
 	return convertErr(err)
 }
 
-// Get implements the `db.table` interface.
+// Get implements the `db.Table` interface.
 func (t *table) Get(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -74,7 +74,7 @@ func (t *table) Get(key string, value interface{}) error {
 	return convertErr(err)
 }
 
-// Delete implements the `db.table` interface.
+// Delete implements the `db.Table` interface.
 func (t *table) Delete(key string) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -87,7 +87,7 @@ func (t *table) Delete(key string) error {
 	return convertErr(err)
 }
 
-// Size implements the `db.table` interface.
+// Size implements the `db.Table` interface.
 func (t *table) Size() (int, error) {
 	count := 0
 	err := t.db.View(func(txn *badger.Txn) error {
@@ -104,7 +104,7 @@ func (t *table) Size() (int, error) {
 	return count, err
 }
 
-// Iterator implements the `db.table` interface.
+// Iterator implements the `db.Table` interface.
 func (t *table) Iterator() (db.Iterator, error) {
 	tx := t.db.NewTransaction(false)
 	opts := badger.DefaultIteratorOptions

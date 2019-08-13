@@ -132,11 +132,11 @@ var _ = Describe("in-memory LRU cache", func() {
 					ttlDB, err := New(ctx, memdb.New(codec), 200*time.Millisecond, 100*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 
-					var newValue testutil.TestStruct
+					newValue := testutil.TestStruct{D: []byte{}}
 					Expect(ttlDB.Get(name, key, &newValue)).Should(Equal(db.ErrKeyNotFound))
 					Expect(ttlDB.Insert(name, key, &value)).NotTo(HaveOccurred())
 					Expect(ttlDB.Get(name, key, &newValue)).NotTo(HaveOccurred())
-					Expect(value.Equal(newValue)).Should(BeTrue())
+					Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
 
 					Eventually(func() error {
 						return ttlDB.Get(name, key, &newValue)
@@ -159,11 +159,11 @@ var _ = Describe("in-memory LRU cache", func() {
 					ttlDB, err := New(ctx, memdb.New(codec), 200*time.Millisecond, 100*time.Millisecond, codec)
 					Expect(err).NotTo(HaveOccurred())
 
-					var newValue testutil.TestStruct
+					newValue := testutil.TestStruct{D: []byte{}}
 					Expect(ttlDB.Get(name, key, &newValue)).Should(Equal(db.ErrKeyNotFound))
 					Expect(ttlDB.Insert(name, key, &value)).NotTo(HaveOccurred())
 					Expect(ttlDB.Get(name, key, &newValue)).NotTo(HaveOccurred())
-					Expect(value.Equal(newValue)).Should(BeTrue())
+					Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
 					size, err := ttlDB.Size(name)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(size).To(Equal(1))
