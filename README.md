@@ -144,5 +144,11 @@ Read/Write directly though the DB. (It will initialize an empty table if the tab
 	handle(err)
 ```
 
+### Benchmarks results
+
+| Database | Number of iterations run | Time (ns/op) | Memory (bytes/op) |
+|----------|:------------------------:|-------------:|-------------------|
+| LevelDB  |           2000           |     10784337 | 4397224           |
+| BadgerDB |            100           |    200012411 | 200012411         |
 
 Built with ❤ by Ren.
