@@ -104,40 +104,40 @@ var _ = Describe("badger DB implementation of the db", func() {
 					phi.ParForAll(names, func(i int) {
 						entries := testEntries[i]
 
-						// Inserting all data entries
-						for j, entry := range entries {
-							err := badgerDB.Insert(names[i], fmt.Sprintf("%v", j), entry)
-							if err != nil {
-								errs[i] = err
-								return
+						errs[i] = func() error {
+							// Inserting all data entries
+							for j, entry := range entries {
+								err := badgerDB.Insert(names[i], fmt.Sprintf("%v", j), entry)
+								if err != nil {
+									return err
+								}
 							}
-						}
 
-						// Check the size function returning the right size of the table.
-						size, err := badgerDB.Size(names[i])
-						if err != nil {
-							errs[i] = err
-							return
-						}
-						if size != len(entries) {
-							errs[i] = fmt.Errorf("test failed, unexpected table size, expect = %v, got = %v", len(entries), size)
-							return
-						}
-
-						// Retrieve all data entries
-						for j, entry := range entries {
-							storedEntry := testutil.TestStruct{D: []byte{}}
-							err := badgerDB.Get(names[i], fmt.Sprintf("%v", j), &storedEntry)
+							// Check the size function returning the right size of the table.
+							size, err := badgerDB.Size(names[i])
 							if err != nil {
-								errs[i] = err
-								return
+								return err
+
 							}
-							if !reflect.DeepEqual(storedEntry, entry) {
-								errs[i] = fmt.Errorf("fail to retrieve data from the table %v", names[i])
-								return
+							if size != len(entries) {
+								return fmt.Errorf("test failed, unexpected table size, expect = %v, got = %v", len(entries), size)
 							}
-							Expect(badgerDB.Delete(names[i], fmt.Sprintf("%v", j))).Should(Succeed())
-						}
+
+							// Retrieve all data entries
+							for j, entry := range entries {
+								storedEntry := testutil.TestStruct{D: []byte{}}
+								err := badgerDB.Get(names[i], fmt.Sprintf("%v", j), &storedEntry)
+								if err != nil {
+									return err
+								}
+								if !reflect.DeepEqual(storedEntry, entry) {
+									return fmt.Errorf("fail to retrieve data from the table %v", names[i])
+								}
+								Expect(badgerDB.Delete(names[i], fmt.Sprintf("%v", j))).Should(Succeed())
+							}
+							return nil
+						}()
+
 					})
 					Expect(testutil.CheckErrors(errs)).Should(BeNil())
 
@@ -158,54 +158,51 @@ var _ = Describe("badger DB implementation of the db", func() {
 					phi.ParForAll(names, func(i int) {
 						entries := testEntries[i]
 
-						// Inserting all data entries
-						allValues := map[string]testutil.TestStruct{}
-						for j, entry := range entries {
-							key := fmt.Sprintf("%v", j)
-							err := badgerDB.Insert(names[i], fmt.Sprintf("%v", j), entry)
-							if err != nil {
-								errs[i] = err
-								return
-							}
-							allValues[key] = entry
-						}
-
-						// Expect iterator gives us all the key-value pairs we inserted.
-						iter, err := badgerDB.Iterator(names[i])
-						if err != nil {
-							errs[i] = err
-							return
-						}
-
-						for iter.Next() {
-							key, err := iter.Key()
-							if err != nil {
-								errs[i] = err
-								return
-							}
-							value := testutil.TestStruct{D: []byte{}}
-							err = iter.Value(&value)
-							if err != nil {
-								errs[i] = err
-								return
+						errs[i] = func() error {
+							// Inserting all data entries
+							allValues := map[string]testutil.TestStruct{}
+							for j, entry := range entries {
+								key := fmt.Sprintf("%v", j)
+								err := badgerDB.Insert(names[i], fmt.Sprintf("%v", j), entry)
+								if err != nil {
+									return err
+								}
+								allValues[key] = entry
 							}
 
-							stored, ok := allValues[key]
+							// Expect iterator gives us all the key-value pairs we inserted.
+							iter, err := badgerDB.Iterator(names[i])
 							if err != nil {
-								errs[i] = err
-								return
+								return err
 							}
-							if !ok {
-								errs[i] = errors.New("test failed, iterator has new values inserted after the iterator been created ")
-								return
+
+							for iter.Next() {
+								key, err := iter.Key()
+								if err != nil {
+									return err
+								}
+								value := testutil.TestStruct{D: []byte{}}
+								err = iter.Value(&value)
+								if err != nil {
+									return err
+								}
+
+								stored, ok := allValues[key]
+								if err != nil {
+									return err
+								}
+								if !ok {
+									return errors.New("test failed, iterator has new values inserted after the iterator been created ")
+								}
+								if !reflect.DeepEqual(value, stored) {
+									return errors.New("test failed, stored value different are different")
+								}
+								delete(allValues, key)
+								Expect(badgerDB.Delete(names[i], key)).Should(Succeed())
 							}
-							if !reflect.DeepEqual(value, stored) {
-								errs[i] = errors.New("test failed, stored value different are different")
-								return
-							}
-							delete(allValues, key)
-							Expect(badgerDB.Delete(names[i], key)).Should(Succeed())
-						}
+							return nil
+						}()
+
 					})
 					Expect(testutil.CheckErrors(errs)).Should(BeNil())
 
