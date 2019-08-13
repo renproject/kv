@@ -92,7 +92,7 @@ var _ = Describe("badger DB implementation of the db", func() {
 			})
 		})
 
-		Context("when doing operations on multiple tables within the same DB", func() {
+		Context("when doing operations on multiple tables using the same DB", func() {
 			It("should work properly when doing reading and writing", func() {
 				readAndWrite := func() bool {
 					badgerDB := New(bdb, codec)

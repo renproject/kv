@@ -29,6 +29,9 @@ type table struct {
 
 // NewTable returns a new levelDB implementation of the `db.table`.
 func NewTable(name string, ldb *leveldb.DB, codec db.Codec) db.Table {
+	if codec == nil {
+		panic("codec cannot be nil")
+	}
 	return &table{
 		hash:  sha3.Sum256([]byte(name)),
 		db:    ldb,
@@ -64,6 +67,9 @@ func (t *table) Get(key string, value interface{}) error {
 
 // Delete implements the `db.table` interface.
 func (t *table) Delete(key string) error {
+	if key == "" {
+		return db.ErrEmptyKey
+	}
 	return t.db.Delete(KeyPrefix(t.hash, []byte(key)), nil)
 }
 

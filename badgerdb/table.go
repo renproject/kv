@@ -27,6 +27,9 @@ type table struct {
 
 // NewTable returns a new badgerDB implementation of the `db.table`.
 func NewTable(name string, bdb *badger.DB, codec db.Codec) db.Table {
+	if codec == nil {
+		panic("codec cannot be nil")
+	}
 	return &table{
 		hash:  sha3.Sum256([]byte(name)),
 		db:    bdb,
@@ -73,6 +76,10 @@ func (t *table) Get(key string, value interface{}) error {
 
 // Delete implements the `db.table` interface.
 func (t *table) Delete(key string) error {
+	if key == "" {
+		return db.ErrEmptyKey
+	}
+
 	err := t.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(KeyPrefix(t.hash, []byte(key))))
 	})
@@ -107,7 +114,6 @@ func (t *table) Iterator() (db.Iterator, error) {
 	return &iterator{
 		hash:       t.hash,
 		intialized: false,
-		closed:     false,
 		tx:         tx,
 		iter:       iter,
 		codec:      t.codec,
@@ -118,7 +124,6 @@ func (t *table) Iterator() (db.Iterator, error) {
 type iterator struct {
 	hash       [32]byte
 	intialized bool
-	closed     bool
 	tx         *badger.Txn
 	iter       *badger.Iterator
 	codec      db.Codec
@@ -126,16 +131,16 @@ type iterator struct {
 
 // Next implements the `db.Iterator` interface.
 func (iter *iterator) Next() bool {
-	if iter.closed {
-		return false
-	}
 	if !iter.intialized {
 		iter.intialized = true
 	} else {
+		if !iter.iter.Valid() {
+			return false
+		}
 		iter.iter.Next()
 	}
+
 	if valid := iter.iter.Valid(); !valid {
-		iter.closed = true
 		iter.iter.Close()
 		iter.tx.Discard()
 		return false
@@ -145,7 +150,7 @@ func (iter *iterator) Next() bool {
 
 // Key implements the `db.Iterator` interface.
 func (iter *iterator) Key() (string, error) {
-	if !iter.intialized || iter.closed || !iter.iter.Valid() {
+	if !iter.intialized || !iter.iter.Valid() {
 		return "", db.ErrIndexOutOfRange
 	}
 	key := iter.iter.Item().Key()
@@ -157,7 +162,7 @@ func (iter *iterator) Key() (string, error) {
 
 // Value implements the `db.Iterator` interface.
 func (iter *iterator) Value(value interface{}) error {
-	if !iter.intialized || iter.closed || !iter.iter.Valid() {
+	if !iter.intialized || !iter.iter.Valid() {
 		return db.ErrIndexOutOfRange
 	}
 	data, err := iter.iter.Item().ValueCopy(nil)
