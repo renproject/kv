@@ -21,14 +21,14 @@ jobs:
             go get -u golang.org/x/crypto/...
             go get -u github.com/onsi/ginkgo/ginkgo
             go get -u github.com/onsi/gomega/...
-            go get -u github.com/loongy/covermerge
-            go get -u github.com/mattn/goveralls
+#            go get -u github.com/loongy/covermerge
+#            go get -u github.com/mattn/goveralls
             CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
-            /go/bin/covermerge          \
-              badgerdb/coverprofile.out \
-              cache/coverprofile.out    \
-              memdb/coverprofile.out > coverprofile.out
-            /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
+#            /go/bin/covermerge          \
+#              badgerdb/coverprofile.out \
+#              cache/coverprofile.out    \
+#              memdb/coverprofile.out > coverprofile.out
+#            /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
       - save_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}
           paths:
