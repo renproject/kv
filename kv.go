@@ -7,6 +7,8 @@ import (
 	"errors"
 
 	"github.com/renproject/kv/badgerdb"
+	"github.com/renproject/kv/cache/lru"
+	"github.com/renproject/kv/cache/ttl"
 	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
 	"github.com/renproject/kv/leveldb"
@@ -49,18 +51,24 @@ type (
 // In-memory implementation of the DB and table
 var (
 
-	// NewTable returns a in-memory implementation of the Table interface.
+	// NewTable returns a in-memory implementation of the table interface.
 	NewMemTable = memdb.NewTable
 
 	// NewMemDB returns a key-value database that is implemented in-memory. This
 	// implementation is fast, but does not store data on-disk. It is safe for
 	// concurrent use.
 	NewMemDB = memdb.New
+
+	// TODO: Comment!
+	NewLRUCache = lru.New
+
+	// TODO: Comment!
+	NewTTLCache = ttl.New
 )
 
 // BadgerDB implementation of the DB and table.
 var (
-	// NewBadgerTable returns a Table with a badgerDB implementation. It is safe for
+	// NewBadgerTable returns a table with a badgerDB implementation. It is safe for
 	// concurrent use.
 	NewBadgerTable = badgerdb.NewTable
 
@@ -71,7 +79,7 @@ var (
 
 // LevelDB implementation of the DB and table.
 var (
-	// NewBadgerTable returns a Table with a leveldb implementation. It is safe for
+	// NewBadgerTable returns a table with a leveldb implementation. It is safe for
 	// concurrent use.
 	NewLevelTable = leveldb.NewTable
 

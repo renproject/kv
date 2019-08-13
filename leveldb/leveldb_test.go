@@ -21,39 +21,17 @@ var _ = Describe("level DB implementation of the db", func() {
 	for i := range codecs {
 		codec := codecs[i]
 
-		Context("when creating table", func() {
-			It("should be able create a new table or getting existing ones", func() {
-				tableTest := func(name string) bool {
-					levelDB := New(ldb)
-					table, err := levelDB.NewTable(name, codec)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(table).ShouldNot(BeNil())
-
-					tableByName, err := levelDB.Table(name)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(tableByName).ShouldNot(BeNil())
-
-					return true
-				}
-
-				Expect(quick.Check(tableTest, nil)).NotTo(HaveOccurred())
-			})
-		})
-
 		Context("when operating on a single table", func() {
 			It("should be able to iterable through the db using the iterator", func() {
 				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
-					levelDB := New(ldb)
-					table, err := levelDB.NewTable(name, codec)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(table).ShouldNot(BeNil())
+					levelDB := New(ldb, codec)
 
 					// Make sure the key is not nil
 					if key == "" {
 						return true
 					}
 					val := testutil.TestStruct{D: []byte{}}
-					err = levelDB.Get(name, key, &val)
+					err := levelDB.Get(name, key, &val)
 					Expect(err).Should(Equal(db.ErrKeyNotFound))
 
 					// Should be able to read the value after inserting.
@@ -75,10 +53,7 @@ var _ = Describe("level DB implementation of the db", func() {
 
 			It("should be able to iterable through the db using the iterator", func() {
 				iteration := func(name string, values []testutil.TestStruct) bool {
-					levelDB := New(ldb)
-					table, err := levelDB.NewTable(name, codec)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(table).ShouldNot(BeNil())
+					levelDB := New(ldb, codec)
 
 					// Insert all values and make a map for validation.
 					allValues := map[string]testutil.TestStruct{}
@@ -108,7 +83,7 @@ var _ = Describe("level DB implementation of the db", func() {
 						Expect(ok).Should(BeTrue())
 						Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
 						delete(allValues, key)
-						Expect(table.Delete(key)).Should(Succeed())
+						Expect(levelDB.Delete(name, key)).Should(Succeed())
 					}
 					return len(allValues) == 0
 				}
@@ -120,17 +95,10 @@ var _ = Describe("level DB implementation of the db", func() {
 		Context("when doing operations on multiple tables within the same DB", func() {
 			It("should work properly when doing reading and writing", func() {
 				readAndWrite := func() bool {
-					levelDB := New(ldb)
+					levelDB := New(ldb, codec)
 					names := testutil.RandomNonDupStrings(20)
 					testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
 					errs := make([]error, len(names))
-
-					// Should be able to concurrently creating tables from the same DB.
-					phi.ParForAll(names, func(i int) {
-						_, err := levelDB.NewTable(names[i], codec)
-						errs[i] = err
-					})
-					Expect(testutil.CheckErrors(errs)).Should(BeNil())
 
 					// Should be able to concurrently read and write data of different tables.
 					phi.ParForAll(names, func(i int) {
@@ -181,17 +149,10 @@ var _ = Describe("level DB implementation of the db", func() {
 
 			It("should working properly when iterating each table at the same time", func() {
 				iteration := func() bool {
-					levelDB := New(ldb)
+					levelDB := New(ldb, codec)
 					names := testutil.RandomNonDupStrings(20)
 					testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
 					errs := make([]error, len(names))
-
-					// Should be able to concurrently creating tables from the same DB.
-					phi.ParForAll(names, func(i int) {
-						_, err := levelDB.NewTable(names[i], codec)
-						errs[i] = err
-					})
-					Expect(testutil.CheckErrors(errs)).Should(BeNil())
 
 					// Should be able to concurrently iterating different tables.
 					phi.ParForAll(names, func(i int) {
@@ -252,60 +213,6 @@ var _ = Describe("level DB implementation of the db", func() {
 				}
 
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
-			})
-		})
-
-		Context("when doing operations on a non-exist table", func() {
-			It("should return ErrTableNotFound", func() {
-				test := func(name string, key string, value testutil.TestStruct) bool {
-					levelDB := New(ldb)
-
-					// Retrieve table
-					_, err := levelDB.Table(name)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Insert new key-value pair
-					err = levelDB.Insert(name, key, value)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Retrieve value
-					var val testutil.TestStruct
-					err = levelDB.Get(name, key, &val)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Delete data
-					err = levelDB.Delete(name, key)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Get size
-					_, err = levelDB.Size(name)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					// Get the iterator
-					_, err = levelDB.Iterator(name)
-					Expect(err).Should(Equal(db.ErrTableNotFound))
-
-					return true
-				}
-
-				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
-			})
-		})
-
-		Context("when trying to create a table which already exist", func() {
-			It("should return ErrTableAlreadyExists error", func() {
-				test := func(name string) bool {
-					levelDB := New(ldb)
-					_, err := levelDB.NewTable(name, codec)
-					Expect(err).NotTo(HaveOccurred())
-
-					_, err = levelDB.NewTable(name, codec)
-					Expect(err).Should(Equal(db.ErrTableAlreadyExists))
-
-					return true
-				}
-
-				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 			})
 		})
 	}

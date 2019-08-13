@@ -20,14 +20,14 @@ func KeyPrefix(hash [32]byte, key []byte) []byte {
 	return append(hash[:], key...)
 }
 
-// table is a leveldb implementation of the `db.Table`.
+// table is a leveldb implementation of the `db.table`.
 type table struct {
 	hash  [32]byte
 	db    *leveldb.DB
 	codec db.Codec
 }
 
-// NewTable returns a new levelDB implementation of the `db.Table`.
+// NewTable returns a new levelDB implementation of the `db.table`.
 func NewTable(name string, ldb *leveldb.DB, codec db.Codec) db.Table {
 	return &table{
 		hash:  sha3.Sum256([]byte(name)),
@@ -36,7 +36,7 @@ func NewTable(name string, ldb *leveldb.DB, codec db.Codec) db.Table {
 	}
 }
 
-// Insert implements the `db.Table` interface.
+// Insert implements the `db.table` interface.
 func (t *table) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -49,7 +49,7 @@ func (t *table) Insert(key string, value interface{}) error {
 	return t.db.Put(KeyPrefix(t.hash, []byte(key)), data, nil)
 }
 
-// Get implements the `db.Table` interface.
+// Get implements the `db.table` interface.
 func (t *table) Get(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -62,22 +62,23 @@ func (t *table) Get(key string, value interface{}) error {
 	return t.codec.Decode(val, value)
 }
 
-// Delete implements the `db.Table` interface.
+// Delete implements the `db.table` interface.
 func (t *table) Delete(key string) error {
 	return t.db.Delete(KeyPrefix(t.hash, []byte(key)), nil)
 }
 
-// Size implements the `db.Table` interface.
+// Size implements the `db.table` interface.
 func (t *table) Size() (int, error) {
 	count := 0
 	iter := t.db.NewIterator(util.BytesPrefix(t.hash[:]), nil)
 	for iter.Next() {
 		count++
 	}
+	iter.Release()
 	return count, nil
 }
 
-// Iterator implements the `db.Table` interface.
+// Iterator implements the `db.table` interface.
 func (t *table) Iterator() (db.Iterator, error) {
 	iter := t.db.NewIterator(util.BytesPrefix(t.hash[:]), nil)
 	return &iterator{
