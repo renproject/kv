@@ -33,7 +33,7 @@ var (
 )
 
 type (
-	// Table is a sql-like table for storing key-value pairs. It requires the key
+	// table is a sql-like table for storing key-value pairs. It requires the key
 	// to be a non-empty string and the value has the type which can be marshaled
 	// and unmarshaled by the used Codec.
 	Table = db.Table

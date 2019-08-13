@@ -15,6 +15,9 @@ type table struct {
 
 // NewTable returns a new table using given Codec.
 func NewTable(codec db.Codec) db.Table {
+	if codec == nil {
+		panic("codec cannot be nil ")
+	}
 	return &table{
 		mu:    new(sync.RWMutex),
 		data:  map[string][]byte{},
@@ -30,7 +33,6 @@ func (table *table) Insert(key string, value interface{}) error {
 
 	table.mu.Lock()
 	defer table.mu.Unlock()
-
 	data, err := table.codec.Encode(value)
 	if err != nil {
 		return err
@@ -41,12 +43,13 @@ func (table *table) Insert(key string, value interface{}) error {
 
 // Get implements the `db.table` interface.
 func (table *table) Get(key string, value interface{}) error {
-	table.mu.RLock()
-	defer table.mu.RUnlock()
-
 	if key == "" {
 		return db.ErrEmptyKey
 	}
+
+	table.mu.RLock()
+	defer table.mu.RUnlock()
+
 	val, ok := table.data[key]
 	if !ok {
 		return db.ErrKeyNotFound
@@ -56,6 +59,10 @@ func (table *table) Get(key string, value interface{}) error {
 
 // Delete implements the `db.table` interface.
 func (table *table) Delete(key string) error {
+	if key == "" {
+		return db.ErrEmptyKey
+	}
+
 	table.mu.Lock()
 	defer table.mu.Unlock()
 
@@ -140,8 +147,6 @@ func DeepCopyMap(m map[string][]byte) map[string][]byte {
 // DeepCopyBytes returns a deep copy of bytes slice.
 func DeepCopyBytes(b []byte) []byte {
 	res := make([]byte, len(b))
-	for i := range res {
-		res[i] = b[i]
-	}
+	copy(res, b)
 	return res
 }

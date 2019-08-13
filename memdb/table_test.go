@@ -22,20 +22,31 @@ var codecs = []db.Codec{
 }
 
 var _ = Describe("im-memory implementation of the table", func() {
+
+	Context("when creating a table", func() {
+		It("should failed when passing a nil codec", func() {
+			Expect(func() {
+				NewTable(nil)
+			}).Should(Panic())
+		})
+	})
+
 	for i := range codecs {
 		codec := codecs[i]
 
-		Context(fmt.Sprintf("when reading and writing using %v codec", codec), func() {
+		Context(fmt.Sprintf("when reading and writing using %s codec", codec), func() {
 			It("should be able read and write value", func() {
 				readAndWrite := func(key string, value testutil.TestStruct) bool {
 					table := NewTable(codec)
+
+					// ignore test cases with empty key in positive tests.
 					if key == "" {
 						return true
 					}
 
 					// Expect no value exists in the db with the given key.
-					// << Since gob will parse empty bytes to nil slice. reflect.DeepEqual will return false.
-					// << So we need to initialize D to be a non-nil slice.
+					// << Since gob will parse empty bytes as nil slice and reflect.DeepEqual returns false
+					// << when comparing the, so we need to initialize D to be a non-nil slice.
 					val := testutil.TestStruct{D: []byte{}}
 					err := table.Get(key, &val)
 					Expect(err).Should(Equal(db.ErrKeyNotFound))
@@ -57,7 +68,7 @@ var _ = Describe("im-memory implementation of the table", func() {
 				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 			})
 
-			It("should be able to iterable through the db using the iterator", func() {
+			It("should be able to iterate through the db using the iterator", func() {
 				iteration := func(values []testutil.TestStruct) bool {
 					table := NewTable(codec)
 
@@ -69,7 +80,7 @@ var _ = Describe("im-memory implementation of the table", func() {
 						allValues[key] = value
 					}
 
-					// Expect db size to the number of values we insert.
+					// Expect db size to be the number of values we insert.
 					size, err := table.Size()
 					Expect(err).NotTo(HaveOccurred())
 					Expect(size).Should(Equal(len(values)))
@@ -114,35 +125,30 @@ var _ = Describe("im-memory implementation of the table", func() {
 					// Iterating the db while inserting new data entries at the mean time.
 					errs := make([]error, 2)
 					phi.ParBegin(func() {
-						for iter.Next() {
-							key, err := iter.Key()
-							if err != nil {
-								errs[0] = err
-								return
-							}
-							value := testutil.TestStruct{D: []byte{}}
-							err = iter.Value(&value)
-							if err != nil {
-								errs[0] = err
-								return
-							}
+						errs[0] = func() error {
+							for iter.Next() {
+								key, err := iter.Key()
+								if err != nil {
+									return err
+								}
+								value := testutil.TestStruct{D: []byte{}}
+								err = iter.Value(&value)
+								if err != nil {
+									return err
+								}
 
-							stored, ok := allValues[key]
-							if !ok {
-								if err != nil {
-									errs[0] = errors.New("test failed, iterator has new values inserted after the iterator been created ")
-									return
+								stored, ok := allValues[key]
+								if !ok {
+									return errors.New("test failed, iterator has new values inserted after the iterator been created ")
 								}
-							}
-							if !reflect.DeepEqual(value, stored) {
-								if err != nil {
-									errs[0] = errors.New("test failed, stored value has been changed")
-									return
+								if !reflect.DeepEqual(value, stored) {
+									return errors.New("test failed, stored value has been changed")
 								}
+								delete(allValues, key)
 							}
-							delete(allValues, key)
-						}
-						Expect(len(allValues)).Should(BeZero())
+							Expect(len(allValues)).Should(BeZero())
+							return nil
+						}()
 					}, func() {
 						// Inserting new data entries at the meantime.
 						for i := 0; i < 20; i++ {
@@ -163,8 +169,35 @@ var _ = Describe("im-memory implementation of the table", func() {
 			})
 		})
 
-		Context("negative tests", func() {
-			It("should return error when trying to get key/value when the iterator doesn't have next value", func() {
+		Context("when trying to read value from store", func() {
+			It("should return error if the value object is not a pointer ", func() {
+				read := func(key string, value testutil.TestStruct) bool {
+					table := NewTable(codec)
+					if key == "" {
+						return true
+					}
+					Expect(table.Insert(key, value)).Should(Succeed())
+
+					Expect(func() error {
+						val := testutil.TestStruct{D: []byte{}}
+						if err := table.Get(key, val); err != nil {
+							return err
+						}
+						if !reflect.DeepEqual(val, value) {
+							return errors.New("fail to get value from table")
+						}
+						return nil
+					}()).ShouldNot(Succeed())
+
+					return true
+				}
+
+				Expect(quick.Check(read, nil)).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("when trying to get key/value when the iterator doesn't have next value", func() {
+			It("should return ErrIndexOutOfRange", func() {
 				iteration := func(key string, value testutil.TestStruct) bool {
 					table := NewTable(codec)
 					if key == "" {
@@ -189,13 +222,12 @@ var _ = Describe("im-memory implementation of the table", func() {
 
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 			})
+		})
 
-			It("should return error when trying to get key/value without calling Next()", func() {
-				iteration := func(key string) bool {
+		Context("when trying to get key/value without calling Next()", func() {
+			It("should return ErrIndexOutOfRange ", func() {
+				iteration := func() bool {
 					table := NewTable(codec)
-					if key == "" {
-						return true
-					}
 
 					iter, err := table.Iterator()
 					Expect(err).NotTo(HaveOccurred())
@@ -213,16 +245,6 @@ var _ = Describe("im-memory implementation of the table", func() {
 
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 			})
-
-			It("should return ErrEmptyKey when trying to insert a value with empty key", func() {
-				iteration := func(value []byte) bool {
-					table := NewTable(codec)
-					Expect(table.Insert("", value)).Should(Equal(db.ErrEmptyKey))
-					return true
-				}
-
-				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
-			})
 		})
 
 		Context("when trying to insert or get values with empty key", func() {
@@ -230,11 +252,9 @@ var _ = Describe("im-memory implementation of the table", func() {
 				test := func(value testutil.TestStruct) bool {
 					table := NewTable(codec)
 
-					err := table.Insert("", value)
-					Expect(err).Should(Equal(db.ErrEmptyKey))
-
-					err = table.Get("", &value)
-					Expect(err).Should(Equal(db.ErrEmptyKey))
+					Expect(table.Insert("", value)).Should(Equal(db.ErrEmptyKey))
+					Expect(table.Get("", &value)).Should(Equal(db.ErrEmptyKey))
+					Expect(table.Delete("")).Should(Equal(db.ErrEmptyKey))
 
 					return true
 				}

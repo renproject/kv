@@ -13,17 +13,14 @@ var ErrEmptyKey = errors.New("key cannot be empty")
 // ErrIndexOutOfRange is returned when the iterator index is not in a valid range.
 var ErrIndexOutOfRange = errors.New("iterator index out of range")
 
-// ErrTableAlreadyExists is returned when the table with given name is already exists in the db.
-var ErrTableAlreadyExists = errors.New("table already exists")
-
-// Codec can encode and decode between arbitrary data object and bytes.
+// Codec can do encoding/decoding between arbitrary data object and bytes.
 type Codec interface {
 
 	// Encode the object into a slice of bytes.
 	Encode(obj interface{}) ([]byte, error)
 
-	// Decode the bytes to its original data object and assign the object to the
-	// given parameter. Value underlying `value` must be a pointer to the correct
+	// Decode the bytes to its original data object and assign it to the given
+	// variable. Value underlying `value` must be a pointer to the correct
 	// type for object.
 	Decode(data []byte, value interface{}) error
 }
@@ -36,8 +33,8 @@ type Table interface {
 	// Insert writes the key-value into the table.
 	Insert(key string, value interface{}) error
 
-	// Get the value associated with the given key. This function returns
-	// ErrKeyNotFound if the key cannot be found.
+	// Get the value associated with the given key and assign it to the given
+	// variable. This function returns ErrKeyNotFound if the key cannot be found.
 	Get(key string, value interface{}) error
 
 	// Delete the value with the given key from the table. It is safe to use
@@ -51,12 +48,13 @@ type Table interface {
 	Iterator() (Iterator, error)
 }
 
-// DB is able to add new table and does operations on certain table by its name.
+// DB is a collection of tables. It allows user to maintain multiple tables
+// with the same underlying database driver. It will automatically creat a new
+// table when first time writing to it.
 type DB interface {
 
-	// Insert the key, value pair into the table with given name. It will return
-	// ErrTableNotFound if the table doesn't exist. It will return `ErrEmptyKey`
-	// if the key is empty.
+	// Insert the key-value pair into the table with given name. It will
+	// return `ErrEmptyKey` if the key is empty.
 	Insert(name string, key string, value interface{}) error
 
 	// Get retrieves the value of given key from the specified table and unmarshals
@@ -85,10 +83,10 @@ type Iterator interface {
 	Next() bool
 
 	// Key of the current key-value tuple. Calling Key() without calling
-	// Next() or no next item in the iter will result in `ErrIndexOutOfRange`
+	// Next() or when no next item in the iter may result in `ErrIndexOutOfRange`
 	Key() (string, error)
 
 	// Value of the current key-value tuple. Calling Value() without calling
-	// Next() or no next item in the iter will result in `ErrIndexOutOfRange`
+	// Next() or when no next item in the iter will result in `ErrIndexOutOfRange`
 	Value(value interface{}) error
 }
