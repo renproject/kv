@@ -59,11 +59,6 @@ var (
 	// concurrent use.
 	NewMemDB = memdb.New
 
-	// TODO: Comment!
-	NewLRUCache = lru.New
-
-	// TODO: Comment!
-	NewTTLCache = ttl.New
 )
 
 // BadgerDB implementation of the DB and table.
@@ -88,6 +83,7 @@ var (
 	NewLevelDB = leveldb.New
 )
 
+// Codecs
 var (
 	// JSONCodec is a json codec that marshals and unmarshals values using the
 	// standard Golang JSON marshalers. For more information, see
@@ -97,4 +93,18 @@ var (
 	// GobCodec is a gob codec that encodes and decodes values using gob. For
 	// more information, see https://golang.org/pkg/encoding/gob.
 	GobCodec = codec.GobCodec
+)
+
+// DB wrappers
+var (
+
+	// NewLRUCache wraps a given DB and creates a DB which has lru cache.
+	NewLRUCache = lru.New
+
+	// NewLRUTable wraps a given Table and creates a Table which has lru cache.
+	NewLRUTable = lru.NewLruTable
+
+	// NewTTLCache wraps a given DB and creates a time-to-live DB. It will
+	// automatically prune the data in the db until the context expires.
+	NewTTLCache = ttl.New
 )
