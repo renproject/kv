@@ -58,7 +58,6 @@ var (
 	// implementation is fast, but does not store data on-disk. It is safe for
 	// concurrent use.
 	NewMemDB = memdb.New
-
 )
 
 // BadgerDB implementation of the DB and table.
@@ -97,7 +96,6 @@ var (
 
 // DB wrappers
 var (
-
 	// NewLRUCache wraps a given DB and creates a DB which has lru cache.
 	NewLRUCache = lru.New
 

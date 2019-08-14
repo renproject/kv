@@ -27,7 +27,7 @@ type inMemTTL struct {
 
 // New returns a new ttl wrapper over the given database.
 // The underlying database cannot have any database has a prefix of `ttl_`.
-func New(ctx context.Context, database db.DB, timeToLive time.Duration, pruneInterval time.Duration, codec db.Codec) (db.DB, error) {
+func New(ctx context.Context, database db.DB, timeToLive time.Duration, pruneInterval time.Duration, codec db.Codec) db.DB {
 	ttlDB := inMemTTL{
 		timeToLive:    timeToLive,
 		pruneInterval: pruneInterval,
@@ -37,7 +37,7 @@ func New(ctx context.Context, database db.DB, timeToLive time.Duration, pruneInt
 
 	ttlDB.prune(ctx)
 
-	return &ttlDB, nil
+	return &ttlDB
 }
 
 func (ttlDB *inMemTTL) Table(name string) db.Table {
