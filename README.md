@@ -1,6 +1,5 @@
 # KV
 
-
 [![CircleCI](https://circleci.com/gh/renproject/kv/tree/master.svg?style=shield)](https://circleci.com/gh/renproject/kv/tree/master)
 ![Go Report](https://goreportcard.com/badge/github.com/renproject/kv)
 [![Coverage Status](https://coveralls.io/repos/github/renproject/kv/badge.svg?branch=master)](https://coveralls.io/github/renproject/kv?branch=master)
@@ -12,55 +11,61 @@ A flexible and extensible library for key-value storage.
 - [x] In-memory database drivers
 - [x] Time-to-live caching
 - [x] Safe for concurrent use
+- [x] Production ready
 
 Installation
------------
+------------
 
-	go get github.com/renproject/kv
+```sh
+go get github.com/renproject/kv
+```
 
 Requirements
------------
+------------
 
-* Need at least `go1.6` or newer.
+Requires `go1.6` or newer.
 
 Usage
------------
+-----
 
 ### Codec
 
-A **Codec** is something can encode arbitrary object into bytes and decode bytes back to the original object.
-There're two **Codec** we currently support `JsonCodec` and `GobCodec`.
-More details can be found from [JsonCodec](https://golang.org/pkg/encoding/json/) and [GobCodec](https://golang.org/pkg/encoding/gob/)
+A `Codec` is encodes `interface{}` values into bytes, decode bytes into the `interface{}` values. Generally, when a specific type is not supported, a `Codec` will panic. Out of the box, KV supports:
+
+- `JSONCodec` which encodes/decodes using the standard library [JSON](https://golang.org/pkg/encoding/json) marshaler, and
+- `GobCodec` which encodes/decodes using the standard library [Gob]https://golang.org/pkg/encoding/gob marshaler (you must explicitly register types outside of KV).
+
+An example of using the `JSONCodec`:
 
 ```go
-    codec := kv.JsonCodec
-    
-    codec := kv.GobCodec
-
+// Init LevelDB
+ldb, err := leveldb.OpenFile("./db", nil)
+if err != nil {
+    log.Fatalf("error opening ldb file: %v", err)
+}
+// Init KV
+db := kv.NewLevelDB(kv.JsonCodec)
 ```
 
 ### Table
 
-A **Table** is a sql-like table for storing key-value pairs.
-It requires the key to be a non-empty string and the value to be able to be marshaled/unmarshaled by the provided **Codec**.
+A `Table` groups key/value pairs by automatically prefixing the key with a table name. Inserting a key/value pair into a table requires the key to be non-empty.
 
 Creating a Table:
+
 ```go
-	// In-memory implementation 
-	table := kv.NewMemTable(kv.JsonCodec)
+// In-memory implementation 
+table := kv.NewMemTable(kv.JsonCodec)
 
-    // Leveldb implementation
-    ldb, err = leveldb.OpenFile("./.leveldb", nil)
-    handle(err)
-    table := kv.NewLevelTable("name", ldb, kv.JsonCodec)
+// Leveldb implementation
+ldb, err = leveldb.OpenFile("./.leveldb", nil)
+handle(err)
+table := kv.NewLevelTable("name", ldb, kv.JsonCodec)
 
-	// BadgerDB implementation 
-	bdb, err:= badger.Open(badger.DefaultOptions("."))
-	handle(err)
-	table := kv.NewBadgerTable("name", bdb, kv.JsonCodec)
-	
-
-
+// BadgerDB implementation 
+bdb, err:= badger.Open(badger.DefaultOptions("."))
+handle(err)
+table := kv.NewBadgerTable("name", bdb, kv.JsonCodec)
 ```
 
 Read, write and delete on a table :
@@ -150,5 +155,8 @@ Read/Write directly though the DB. (It will initialize an empty table if the tab
 |----------|:------------------------:|-------------:|-------------------|
 | LevelDB  |           2000           |     10784337 | 4397224           |
 | BadgerDB |            100           |    200012411 | 200012411         |
+
+Contributors
+------------
 
 Built with ❤ by Ren.
