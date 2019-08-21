@@ -22,10 +22,11 @@ var _ = Describe("badger DB implementation of the db", func() {
 		codec := codecs[i]
 
 		Context("when operating on a single Table", func() {
-			It("should be able to iterable through the db using the iterator", func() {
-				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
-					badgerDB := New(bdb, codec)
+			It("should be able to do read, write and delete", func() {
+				badgerDB := New(".badgerdb", codec)
+				defer badgerDB.Close()
 
+				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
 					// Make sure the key is not nil
 					if key == "" {
 						return true
@@ -52,9 +53,10 @@ var _ = Describe("badger DB implementation of the db", func() {
 			})
 
 			It("should be able to iterable through the db using the iterator", func() {
-				iteration := func(name string, values []testutil.TestStruct) bool {
-					badgerDB := New(bdb, codec)
+				badgerDB := New(".badgerdb", codec)
+				defer badgerDB.Close()
 
+				iteration := func(name string, values []testutil.TestStruct) bool {
 					// Insert all values and make a map for validation.
 					allValues := map[string]testutil.TestStruct{}
 					for i, value := range values {
@@ -68,8 +70,7 @@ var _ = Describe("badger DB implementation of the db", func() {
 					Expect(size).Should(Equal(len(values)))
 
 					// Expect iterator gives us all the key-value pairs we insert.
-					iter, err := badgerDB.Iterator(name)
-					Expect(err).NotTo(HaveOccurred())
+					iter := badgerDB.Iterator(name)
 					Expect(iter).ShouldNot(BeNil())
 
 					for iter.Next() {
@@ -94,8 +95,10 @@ var _ = Describe("badger DB implementation of the db", func() {
 
 		Context("when doing operations on multiple tables using the same DB", func() {
 			It("should work properly when doing reading and writing", func() {
+				badgerDB := New(".badgerdb", codec)
+				defer badgerDB.Close()
+
 				readAndWrite := func() bool {
-					badgerDB := New(bdb, codec)
 					names := testutil.RandomNonDupStrings(20)
 					testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
 					errs := make([]error, len(names))
@@ -148,8 +151,10 @@ var _ = Describe("badger DB implementation of the db", func() {
 			})
 
 			It("should working properly when iterating each Table at the same time", func() {
+				badgerDB := New(".badgerdb", codec)
+				defer badgerDB.Close()
+
 				iteration := func() bool {
-					badgerDB := New(bdb, codec)
 					names := testutil.RandomNonDupStrings(20)
 					testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
 					errs := make([]error, len(names))
@@ -171,11 +176,7 @@ var _ = Describe("badger DB implementation of the db", func() {
 							}
 
 							// Expect iterator gives us all the key-value pairs we inserted.
-							iter, err := badgerDB.Iterator(names[i])
-							if err != nil {
-								return err
-							}
-
+							iter := badgerDB.Iterator(names[i])
 							for iter.Next() {
 								key, err := iter.Key()
 								if err != nil {
@@ -212,5 +213,83 @@ var _ = Describe("badger DB implementation of the db", func() {
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 			})
 		})
+
+		Context("when operating with empty key", func() {
+			It("should return ErrEmptyKey error", func() {
+				badgerDB := New(".badgerdb", codec)
+				defer badgerDB.Close()
+
+				test := func(name string) bool {
+					err := badgerDB.Insert(name, "", "")
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					var val string
+					err = badgerDB.Get(name, "", &val)
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					err = badgerDB.Delete(name, "")
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("when iterating through a table using iterator", func() {
+			Context("when trying get the key with an invalid index", func() {
+				It("should return an ErrIndexOutOfRange error ", func() {
+					badgerDB := New(".badgerdb", codec)
+					defer badgerDB.Close()
+
+					iteration := func(name string, values []testutil.TestStruct) bool {
+						for i, value := range values {
+							Expect(badgerDB.Insert(name, fmt.Sprintf("%d", i), value)).Should(Succeed())
+						}
+
+						iter := badgerDB.Iterator(name)
+						var val testutil.TestStruct
+						_, err := iter.Key()
+						Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+						Expect(iter.Value(&val)).Should(Equal(db.ErrIndexOutOfRange))
+
+						for iter.Next() {
+						}
+
+						_, err = iter.Key()
+						Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+						Expect(iter.Value(&val)).Should(Equal(db.ErrIndexOutOfRange))
+
+						for i := range values {
+							Expect(badgerDB.Delete(name, fmt.Sprintf("%d", i))).Should(Succeed())
+						}
+
+						return true
+					}
+
+					Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+				})
+			})
+		})
+
+		Context("when trying to create more than one db using the same path", func() {
+			It("should panic", func() {
+				badgerDB := New(".badgerdb", codec)
+				defer badgerDB.Close()
+
+				Expect(func() {
+					New(".badgerdb", codec)
+				}).Should(Panic())
+			})
+		})
 	}
+
+	Context("when initializing the db with a nil codec", func() {
+		It("should panic", func() {
+			Expect(func() {
+				New("dir", nil)
+			}).Should(Panic())
+		})
+	})
 })

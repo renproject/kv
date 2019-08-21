@@ -25,34 +25,11 @@ type Codec interface {
 	Decode(data []byte, value interface{}) error
 }
 
-// Table is a sql-like table for storing key-value pairs. It requires the key
-// to be a non-empty string and the value has the type which can be marshaled
-// and unmarshaled by the used Codec.
-type Table interface {
-
-	// Insert writes the key-value into the table.
-	Insert(key string, value interface{}) error
-
-	// Get the value associated with the given key and assign it to the given
-	// variable. This function returns ErrKeyNotFound if the key cannot be found.
-	Get(key string, value interface{}) error
-
-	// Delete the value with the given key from the table. It is safe to use
-	// this function to delete a key which is not in the table.
-	Delete(key string) error
-
-	// Size returns the number of data entries in the table.
-	Size() (int, error)
-
-	// Iterator returns an iterator that can iterate over table.
-	Iterator() (Iterator, error)
-}
-
 // DB is a collection of tables. It allows user to maintain multiple tables
 // with the same underlying database driver. It will automatically creat a new
 // table when first time writing to it.
 type DB interface {
-	Table(name string) Table
+	Close() error
 
 	// Insert the key-value pair into the table with given name. It will
 	// return `ErrEmptyKey` if the key is empty.
@@ -72,7 +49,7 @@ type DB interface {
 	Size(name string) (int, error)
 
 	// Iterator returns a iterator of the table with given name.
-	Iterator(table string) (Iterator, error)
+	Iterator(name string) Iterator
 }
 
 // Iterator is used to iterate through the data in the store.

@@ -22,10 +22,11 @@ var _ = Describe("level DB implementation of the db", func() {
 		codec := codecs[i]
 
 		Context("when operating on a single Table", func() {
-			It("should be able to iterable through the db using the iterator", func() {
-				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
-					levelDB := New(ldb, codec)
+			It("should be able to do read, write and delete", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
 
+				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
 					// Make sure the key is not nil
 					if key == "" {
 						return true
@@ -51,10 +52,11 @@ var _ = Describe("level DB implementation of the db", func() {
 				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
 			})
 
-			It("should be able to iterable through the db using the iterator", func() {
-				iteration := func(name string, values []testutil.TestStruct) bool {
-					levelDB := New(ldb, codec)
+			It("should be able to iterable through the db using the iter", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
 
+				iteration := func(name string, values []testutil.TestStruct) bool {
 					// Insert all values and make a map for validation.
 					allValues := map[string]testutil.TestStruct{}
 					for i, value := range values {
@@ -67,9 +69,8 @@ var _ = Describe("level DB implementation of the db", func() {
 					Expect(err).NotTo(HaveOccurred())
 					Expect(size).Should(Equal(len(values)))
 
-					// Expect iterator gives us all the key-value pairs we insert.
-					iter, err := levelDB.Iterator(name)
-					Expect(err).NotTo(HaveOccurred())
+					// Expect iter gives us all the key-value pairs we insert.
+					iter := levelDB.Iterator(name)
 					Expect(iter).ShouldNot(BeNil())
 
 					for iter.Next() {
@@ -94,8 +95,10 @@ var _ = Describe("level DB implementation of the db", func() {
 
 		Context("when doing operations on multiple tables using the same DB", func() {
 			It("should work properly when doing reading and writing", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
+
 				readAndWrite := func() bool {
-					levelDB := New(ldb, codec)
 					names := testutil.RandomNonDupStrings(20)
 					testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
 					errs := make([]error, len(names))
@@ -148,8 +151,10 @@ var _ = Describe("level DB implementation of the db", func() {
 			})
 
 			It("should working properly when iterating each Table at the same time", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
+
 				iteration := func() bool {
-					levelDB := New(ldb, codec)
 					names := testutil.RandomNonDupStrings(20)
 					testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
 					errs := make([]error, len(names))
@@ -170,12 +175,8 @@ var _ = Describe("level DB implementation of the db", func() {
 								allValues[key] = entry
 							}
 
-							// Expect iterator gives us all the key-value pairs we inserted.
-							iter, err := levelDB.Iterator(names[i])
-							if err != nil {
-								return err
-							}
-
+							// Expect iter gives us all the key-value pairs we inserted.
+							iter := levelDB.Iterator(names[i])
 							for iter.Next() {
 								key, err := iter.Key()
 								if err != nil {
@@ -192,7 +193,7 @@ var _ = Describe("level DB implementation of the db", func() {
 									return err
 								}
 								if !ok {
-									return errors.New("test failed, iterator has new values inserted after the iterator been created ")
+									return errors.New("test failed, iter has new values inserted after the iter been created ")
 								}
 								if !reflect.DeepEqual(value, stored) {
 									return errors.New("test failed, stored value different are different")
@@ -211,5 +212,83 @@ var _ = Describe("level DB implementation of the db", func() {
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 			})
 		})
+
+		Context("when operating with empty key", func() {
+			It("should return ErrEmptyKey error", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
+
+				test := func(name string) bool {
+					err := levelDB.Insert(name, "", "")
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					var val string
+					err = levelDB.Get(name, "", &val)
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					err = levelDB.Delete(name, "")
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("when iterating through a table using iterator", func() {
+			Context("when trying get the key with an invalid index", func() {
+				It("should return an ErrIndexOutOfRange error ", func() {
+					levelDB := New(".leveldb", codec)
+					defer levelDB.Close()
+
+					iteration := func(name string, values []testutil.TestStruct) bool {
+						for i, value := range values {
+							Expect(levelDB.Insert(name, fmt.Sprintf("%d", i), value)).Should(Succeed())
+						}
+
+						iter := levelDB.Iterator(name)
+						var val testutil.TestStruct
+						_, err := iter.Key()
+						Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+						Expect(iter.Value(&val)).Should(Equal(db.ErrIndexOutOfRange))
+
+						for iter.Next() {
+						}
+
+						_, err = iter.Key()
+						Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+						Expect(iter.Value(&val)).Should(Equal(db.ErrIndexOutOfRange))
+
+						for i := range values {
+							Expect(levelDB.Delete(name, fmt.Sprintf("%d", i))).Should(Succeed())
+						}
+
+						return true
+					}
+
+					Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+				})
+			})
+		})
+
+		Context("when trying to create more than one db using the same path", func() {
+			It("should panic", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
+
+				Expect(func() {
+					New(".leveldb", codec)
+				}).Should(Panic())
+			})
+		})
 	}
+
+	Context("when initializing the db with a nil codec", func() {
+		It("should panic", func() {
+			Expect(func() {
+				New("dir", nil)
+			}).Should(Panic())
+		})
+	})
 })

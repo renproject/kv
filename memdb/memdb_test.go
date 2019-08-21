@@ -22,9 +22,10 @@ var _ = Describe("im-memory implementation of the db", func() {
 		codec := codecs[i]
 
 		Context("when operating on a single table", func() {
-			It("should be able to iterable through the db using the iterator", func() {
+			It("should be able to do read , write and delete", func() {
 				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
 					memdb := New(codec)
+					defer memdb.Close()
 
 					// Ignore test cases where key is nil for positive tests.
 					if key == "" {
@@ -54,6 +55,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 			It("should be able to iterable through the db using the iterator", func() {
 				iteration := func(name string, values []testutil.TestStruct) bool {
 					memdb := New(codec)
+					defer memdb.Close()
 
 					// Insert all values and make a map for validation.
 					allValues := map[string]testutil.TestStruct{}
@@ -68,8 +70,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 					Expect(size).Should(Equal(len(values)))
 
 					// Expect iterator gives us all the key-value pairs we insert.
-					iter, err := memdb.Iterator(name)
-					Expect(err).NotTo(HaveOccurred())
+					iter := memdb.Iterator(name)
 					Expect(iter).ShouldNot(BeNil())
 
 					for iter.Next() {
@@ -91,15 +92,17 @@ var _ = Describe("im-memory implementation of the db", func() {
 			})
 		})
 
-		Context("when doing operations on multiple tables using the same DB", func() {
+		Context("when doing operations on multiple data using the same DB", func() {
 			It("should work properly when doing reading and writing", func() {
 				readAndWrite := func() bool {
 					memdb := New(codec)
+					defer memdb.Close()
+
 					names := testutil.RandomNonDupStrings(20)
 					testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
 					errs := make([]error, len(names))
 
-					// Should be able to concurrently read and write data of different tables.
+					// Should be able to concurrently read and write data of different data.
 					phi.ParForAll(names, func(i int) {
 						entries := testEntries[i]
 
@@ -145,11 +148,13 @@ var _ = Describe("im-memory implementation of the db", func() {
 			It("should working properly when iterating each table at the same time", func() {
 				iteration := func() bool {
 					memdb := New(codec)
+					defer memdb.Close()
+
 					names := testutil.RandomNonDupStrings(20)
 					testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
 					errs := make([]error, len(names))
 
-					// Should be able to concurrently iterating different tables.
+					// Should be able to concurrently iterating different data.
 					phi.ParForAll(names, func(i int) {
 						entries := testEntries[i]
 
@@ -166,11 +171,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 							}
 
 							// Expect iterator gives us all the key-value pairs we inserted.
-							iter, err := memdb.Iterator(names[i])
-							if err != nil {
-								return err
-							}
-
+							iter := memdb.Iterator(names[i])
 							for iter.Next() {
 								key, err := iter.Key()
 								if err != nil {
@@ -205,5 +206,68 @@ var _ = Describe("im-memory implementation of the db", func() {
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 			})
 		})
+
+		Context("when operating with empty key", func() {
+			It("should return ErrEmptyKey error", func() {
+				memdb := New(codec)
+				defer memdb.Close()
+
+				test := func(name string) bool {
+					err := memdb.Insert(name, "", "")
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					var val string
+					err = memdb.Get(name, "", &val)
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					err = memdb.Delete(name, "")
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("when iterating through a table using iterator", func() {
+			Context("when trying get the key with an invalid index", func() {
+				It("should return an ErrIndexOutOfRange error ", func() {
+					iteration := func(name string, values []testutil.TestStruct) bool {
+						memdb := New(codec)
+						defer memdb.Close()
+
+						for i, value := range values {
+							Expect(memdb.Insert(name, fmt.Sprintf("%d", i), value)).Should(Succeed())
+						}
+
+						iter := memdb.Iterator(name)
+						var val testutil.TestStruct
+						_, err := iter.Key()
+						Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+						Expect(iter.Value(&val)).Should(Equal(db.ErrIndexOutOfRange))
+
+						for iter.Next() {
+						}
+
+						_, err = iter.Key()
+						Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+						Expect(iter.Value(&val)).Should(Equal(db.ErrIndexOutOfRange))
+
+						return true
+					}
+
+					Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+				})
+			})
+		})
 	}
+
+	Context("when initializing the db with a nil codec", func() {
+		It("should panic", func() {
+			Expect(func() {
+				New(nil)
+			}).Should(Panic())
+		})
+	})
 })
