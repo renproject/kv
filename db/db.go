@@ -29,27 +29,29 @@ type Codec interface {
 // with the same underlying database driver. It will automatically creat a new
 // table when first time writing to it.
 type DB interface {
+
+	// Close will close the DB.
 	Close() error
 
 	// Insert the key-value pair into the table with given name. It will
 	// return `ErrEmptyKey` if the key is empty.
-	Insert(name string, key string, value interface{}) error
+	Insert(key string, value interface{}) error
 
 	// Get retrieves the value of given key from the specified table and unmarshals
 	// it to the given variable. Value underlying `value` must be a pointer to
 	// the correct type for object. It will return ErrTableNotFound if the table
 	// doesn't exist. It will return `ErrEmptyKey` if the key is empty. It will
 	// return `ErrKeyNotFound` if there's no value associated with the key.
-	Get(name string, key string, value interface{}) error
+	Get(key string, value interface{}) error
 
 	// Delete the data entry with given key from the specified table.
-	Delete(name string, key string) error
+	Delete(key string) error
 
 	// Size returns the number of data entries in the given table.
-	Size(name string) (int, error)
+	Size(prefix string) (int, error)
 
 	// Iterator returns a iterator of the table with given name.
-	Iterator(name string) Iterator
+	Iterator(prefix string) Iterator
 }
 
 // Iterator is used to iterate through the data in the store.

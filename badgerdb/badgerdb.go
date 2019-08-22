@@ -3,39 +3,33 @@ package badgerdb
 import (
 	"bytes"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/dgraph-io/badger"
 	"github.com/renproject/kv/db"
-	"golang.org/x/crypto/sha3"
 )
 
 // badgerDB is a badgerDB implementation of the `db.Iterable`.
 type badgerDB struct {
-	mu       *sync.Mutex
-	prefixes map[string][]byte
-	db     *badger.DB
-	codec    db.Codec
+	db    *badger.DB
+	codec db.Codec
 }
 
 // New returns a new `db.Iterable`.
-func New(path string , codec db.Codec) db.DB {
+func New(path string, codec db.Codec) db.DB {
 	if codec == nil {
 		panic("codec cannot be nil")
 	}
 
-	opts := badger.DefaultOptions("./.badgerdb")
+	opts := badger.DefaultOptions(path)
 	db, err := badger.Open(opts)
 	if err != nil {
 		panic(fmt.Sprintf("fail to initialize badgerDB, err = %v", err))
 	}
 
-	bdb:= &badgerDB{
-		mu:       new(sync.Mutex),
-		prefixes: map[string][]byte{},
-		db:       db,
-		codec:    codec,
+	bdb := &badgerDB{
+		db:    db,
+		codec: codec,
 	}
 
 	go bdb.gc()
@@ -49,31 +43,25 @@ func (bdb *badgerDB) Close() error {
 }
 
 // Insert implements the `db.DB` interface.
-func (bdb *badgerDB) Insert(name string, key string, value interface{}) error {
-	if key == "" {
-		return db.ErrEmptyKey
-	}
-	keyBytes := append(bdb.prefix(name), []byte(key)...)
+func (bdb *badgerDB) Insert(key string, value interface{}) error {
 	data, err := bdb.codec.Encode(value)
 	if err != nil {
 		return err
 	}
 
 	err = bdb.db.Update(func(txn *badger.Txn) error {
-		return txn.Set(keyBytes, data)
+		return txn.Set([]byte(key), data)
 	})
 	return convertErr(err)
 }
 
 // Get implements the `db.DB` interface.
-func (bdb *badgerDB) Get(name string, key string, value interface{}) error {
+func (bdb *badgerDB) Get(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
-	keyBytes := append(bdb.prefix(name), []byte(key)...)
-
 	err := bdb.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get(keyBytes)
+		item, err := txn.Get([]byte(key))
 		if err != nil {
 			return err
 		}
@@ -88,24 +76,22 @@ func (bdb *badgerDB) Get(name string, key string, value interface{}) error {
 }
 
 // Delete implements the `db.DB` interface.
-func (bdb *badgerDB) Delete(name string, key string) error {
+func (bdb *badgerDB) Delete(key string) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
-	keyBytes := append(bdb.prefix(name), []byte(key)...)
-
 	err := bdb.db.Update(func(txn *badger.Txn) error {
-		return txn.Delete(keyBytes)
+		return txn.Delete([]byte(key))
 	})
 	return convertErr(err)
 }
 
 // Size implements the `db.DB` interface.
-func (bdb *badgerDB) Size(name string) (int, error) {
+func (bdb *badgerDB) Size(prefix string) (int, error) {
 	count := 0
 	err := bdb.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		opts.Prefix = bdb.prefix(name)
+		opts.Prefix = []byte(prefix)
 		it := txn.NewIterator(opts)
 		defer it.Close()
 		for it.Rewind(); it.Valid(); it.Next() {
@@ -117,31 +103,19 @@ func (bdb *badgerDB) Size(name string) (int, error) {
 }
 
 // Iterator implements the `db.DB` interface.
-func (bdb *badgerDB) Iterator(name string) db.Iterator {
+func (bdb *badgerDB) Iterator(prefix string) db.Iterator {
 	tx := bdb.db.NewTransaction(false)
 	opts := badger.DefaultIteratorOptions
-	opts.Prefix = bdb.prefix(name)
+	opts.Prefix = []byte(prefix)
 	iter := tx.NewIterator(opts)
 	iter.Rewind()
 	return &iterator{
-		prefix:     opts.Prefix,
-		intialized: false,
-		tx:         tx,
-		iter:       iter,
-		codec:      bdb.codec,
+		prefix:      []byte(prefix),
+		initialized: false,
+		tx:          tx,
+		iter:        iter,
+		codec:       bdb.codec,
 	}
-}
-
-func (bdb *badgerDB) prefix(name string) []byte {
-	bdb.mu.Lock()
-	defer bdb.mu.Unlock()
-
-	if prefix, ok := bdb.prefixes[name]; ok {
-		return prefix
-	}
-	prefix := sha3.Sum256([]byte(name))
-	bdb.prefixes[name] = prefix[:]
-	return prefix[:]
 }
 
 func (bdb *badgerDB) gc() {
@@ -157,17 +131,17 @@ func (bdb *badgerDB) gc() {
 
 // iterator implements the `db.Iterator` interface.
 type iterator struct {
-	prefix     []byte
-	intialized bool
-	tx         *badger.Txn
-	iter       *badger.Iterator
-	codec      db.Codec
+	prefix      []byte
+	initialized bool
+	tx          *badger.Txn
+	iter        *badger.Iterator
+	codec       db.Codec
 }
 
 // Next implements the `db.Iterator` interface.
 func (iter *iterator) Next() bool {
-	if !iter.intialized {
-		iter.intialized = true
+	if !iter.initialized {
+		iter.initialized = true
 	} else {
 		if !iter.iter.Valid() {
 			return false
@@ -185,19 +159,16 @@ func (iter *iterator) Next() bool {
 
 // Key implements the `db.Iterator` interface.
 func (iter *iterator) Key() (string, error) {
-	if !iter.intialized || !iter.iter.Valid() {
+	if !iter.initialized || !iter.iter.Valid() {
 		return "", db.ErrIndexOutOfRange
 	}
 	key := iter.iter.Item().Key()
-	if !bytes.HasPrefix(key, iter.prefix) {
-		return "", fmt.Errorf("invalid key = %x which doesn't have valid prefix", key)
-	}
 	return string(bytes.TrimPrefix(key, iter.prefix)), nil
 }
 
 // Value implements the `db.Iterator` interface.
 func (iter *iterator) Value(value interface{}) error {
-	if !iter.intialized || !iter.iter.Valid() {
+	if !iter.initialized || !iter.iter.Valid() {
 		return db.ErrIndexOutOfRange
 	}
 	data, err := iter.iter.Item().ValueCopy(nil)

@@ -3,21 +3,17 @@ package leveldb
 import (
 	"bytes"
 	"fmt"
-	"sync"
 
 	"github.com/renproject/kv/db"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/util"
-	"golang.org/x/crypto/sha3"
 )
 
 // levelDB is a leveldb implementation of the `db.Iterable`.
 type levelDB struct {
-	mu       *sync.Mutex
-	prefixes map[string][]byte
-	db       *leveldb.DB
-	codec    db.Codec
+	db    *leveldb.DB
+	codec db.Codec
 }
 
 // New returns a new `db.Iterable`.
@@ -32,10 +28,8 @@ func New(path string, codec db.Codec) db.DB {
 	}
 
 	return &levelDB{
-		mu:       new(sync.Mutex),
-		prefixes: map[string][]byte{},
-		db:       ldb,
-		codec:    codec,
+		db:    ldb,
+		codec: codec,
 	}
 }
 
@@ -44,27 +38,25 @@ func (ldb *levelDB) Close() error {
 }
 
 // Insert implements the `db.DB` interface.
-func (ldb *levelDB) Insert(name string, key string, value interface{}) error {
+func (ldb *levelDB) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
-	keyBytes := append(ldb.prefix(name), []byte(key)...)
 	data, err := ldb.codec.Encode(value)
 	if err != nil {
 		return err
 	}
 
-	return ldb.db.Put(keyBytes, data, nil)
+	return ldb.db.Put([]byte(key), data, nil)
 }
 
 // Get implements the `db.DB` interface.
-func (ldb *levelDB) Get(name string, key string, value interface{}) error {
+func (ldb *levelDB) Get(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
 
-	keyBytes := append(ldb.prefix(name), []byte(key)...)
-	data, err := ldb.db.Get(keyBytes, nil)
+	data, err := ldb.db.Get([]byte(key), nil)
 	if err != nil {
 		return convertErr(err)
 	}
@@ -73,19 +65,16 @@ func (ldb *levelDB) Get(name string, key string, value interface{}) error {
 }
 
 // Delete implements the `db.DB` interface.
-func (ldb *levelDB) Delete(name string, key string) error {
+func (ldb *levelDB) Delete(key string) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
-
-	keyBytes := append(ldb.prefix(name), []byte(key)...)
-	return ldb.db.Delete(keyBytes, nil)
+	return ldb.db.Delete([]byte(key), nil)
 }
 
 // Size implements the `db.DB` interface.
-func (ldb *levelDB) Size(name string) (int, error) {
-	prefix := ldb.prefix(name)
-	iter := ldb.db.NewIterator(util.BytesPrefix(prefix), nil)
+func (ldb *levelDB) Size(prefix string) (int, error) {
+	iter := ldb.db.NewIterator(util.BytesPrefix([]byte(prefix)), nil)
 	counter := 0
 	for iter.Next() {
 		counter++
@@ -95,26 +84,13 @@ func (ldb *levelDB) Size(name string) (int, error) {
 }
 
 // Iterator implements the `db.DB` interface.
-func (ldb *levelDB) Iterator(name string) db.Iterator {
-	prefix := ldb.prefix(name)
-	iterator := ldb.db.NewIterator(util.BytesPrefix(prefix), nil)
+func (ldb *levelDB) Iterator(prefix string) db.Iterator {
+	iterator := ldb.db.NewIterator(util.BytesPrefix([]byte(prefix)), nil)
 	return &iter{
-		prefix: prefix,
+		prefix: []byte(prefix),
 		iter:   iterator,
 		codec:  ldb.codec,
 	}
-}
-
-func (ldb *levelDB) prefix(name string) []byte {
-	ldb.mu.Lock()
-	defer ldb.mu.Unlock()
-
-	if prefix, ok := ldb.prefixes[name]; ok {
-		return prefix
-	}
-	prefix := sha3.Sum256([]byte(name))
-	ldb.prefixes[name] = prefix[:]
-	return prefix[:]
 }
 
 // iter implements the `db.Iterator` interface.
@@ -140,9 +116,6 @@ func (iter *iter) Key() (string, error) {
 	key := iter.iter.Key()
 	if key == nil {
 		return "", db.ErrIndexOutOfRange
-	}
-	if !bytes.HasPrefix(key, iter.prefix) {
-		return "", fmt.Errorf("invalid key = %x which doesn't have valid prefix", key)
 	}
 	return string(bytes.TrimPrefix(key, iter.prefix)), nil
 }

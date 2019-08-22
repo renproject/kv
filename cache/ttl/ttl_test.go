@@ -1,7 +1,6 @@
 package ttl_test
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"testing/quick"
@@ -30,14 +29,14 @@ var _ = Describe("in-memory LRU cache", func() {
 
 			It("should be able to read and write values to the db", func() {
 				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
-					ctx, cancel := context.WithCancel(context.Background())
-					defer cancel()
-					ttlDB := New(ctx, memdb.New(codec), 10*time.Second, 5*time.Second, codec)
-
 					// Make sure the key is not nil
 					if key == "" {
 						return true
 					}
+
+					ttlDB := New(memdb.New(codec), 10*time.Second, 5*time.Second, codec)
+					defer ttlDB.Close()
+
 					val := testutil.TestStruct{D: []byte{}}
 					err := ttlDB.Get(name, key, &val)
 					Expect(err).Should(Equal(db.ErrKeyNotFound))
@@ -60,9 +59,8 @@ var _ = Describe("in-memory LRU cache", func() {
 
 			It("should be able to iterate through the db using the iterator", func() {
 				iteration := func(name string, values []testutil.TestStruct) bool {
-					ctx, cancel := context.WithCancel(context.Background())
-					defer cancel()
-					ttlDB := New(ctx, memdb.New(codec), time.Second, 100*time.Millisecond, codec)
+					ttlDB := New(memdb.New(codec), time.Second, 100*time.Millisecond, codec)
+					defer ttlDB.Close()
 
 					// Insert all values and make a map for validation.
 					allValues := map[string]testutil.TestStruct{}
@@ -77,8 +75,7 @@ var _ = Describe("in-memory LRU cache", func() {
 					Expect(size).Should(Equal(len(values)))
 
 					// Expect iterator gives us all the key-value pairs we insert.
-					iter, err := ttlDB.Iterator(name)
-					Expect(err).NotTo(HaveOccurred())
+					iter := ttlDB.Iterator(name)
 					Expect(iter).ShouldNot(BeNil())
 
 					for iter.Next() {
@@ -103,9 +100,8 @@ var _ = Describe("in-memory LRU cache", func() {
 		Context("when doing operations with empty keys", func() {
 			It("should return ErrEmptyKey error", func() {
 				test := func(name string, value testutil.TestStruct) bool {
-					ctx, cancel := context.WithCancel(context.Background())
-					defer cancel()
-					ttlDB := New(ctx, memdb.New(codec), time.Second, 100*time.Millisecond, codec)
+					ttlDB := New(memdb.New(codec), time.Second, 100*time.Millisecond, codec)
+					defer ttlDB.Close()
 
 					Expect(ttlDB.Insert(name, "", value)).Should(Equal(db.ErrEmptyKey))
 					Expect(ttlDB.Get(name, "", value)).Should(Equal(db.ErrEmptyKey))
@@ -124,9 +120,9 @@ var _ = Describe("in-memory LRU cache", func() {
 					if key == "" {
 						return true
 					}
-					ctx, cancel := context.WithCancel(context.Background())
-					defer cancel()
-					ttlDB := New(ctx, memdb.New(codec), 200*time.Millisecond, 100*time.Millisecond, codec)
+
+					ttlDB := New(memdb.New(codec), 200*time.Millisecond, 100*time.Millisecond, codec)
+					defer ttlDB.Close()
 
 					newValue := testutil.TestStruct{D: []byte{}}
 					Expect(ttlDB.Get(name, key, &newValue)).Should(Equal(db.ErrKeyNotFound))
@@ -150,9 +146,8 @@ var _ = Describe("in-memory LRU cache", func() {
 						return true
 					}
 
-					ctx, cancel := context.WithCancel(context.Background())
-					defer cancel()
-					ttlDB := New(ctx, memdb.New(codec), 200*time.Millisecond, 100*time.Millisecond, codec)
+					ttlDB := New(memdb.New(codec), 200*time.Millisecond, 100*time.Millisecond, codec)
+					defer ttlDB.Close()
 
 					newValue := testutil.TestStruct{D: []byte{}}
 					Expect(ttlDB.Get(name, key, &newValue)).Should(Equal(db.ErrKeyNotFound))

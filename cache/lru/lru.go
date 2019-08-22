@@ -1,67 +1,82 @@
 package lru
 
 import (
+	"reflect"
 	"sync"
 
+	"github.com/golang/groupcache/lru"
 	"github.com/renproject/kv/db"
 )
 
-type inMemLRU struct {
-	tableMu *sync.Mutex
-	tables  map[string]db.Table
-
-	db         db.DB
-	maxEntries int
+type lruTable struct {
+	mu    *sync.Mutex
+	lru   *lru.Cache
+	table db.Table
 }
 
-// New returns a new lru DB which wraps the given db.
-func New(ldb db.DB, maxEntries int) db.DB {
-	return &inMemLRU{
-		tableMu:    new(sync.Mutex),
-		tables:     map[string]db.Table{},
-		db:         ldb,
-		maxEntries: maxEntries,
+// NewLruTable return a lru cached table of the given table.
+func NewLruTable(table db.Table, maxEntries int) db.Table {
+	return &lruTable{
+		mu:    new(sync.Mutex),
+		lru:   lru.New(maxEntries),
+		table: table,
 	}
 }
 
-func (lruDB *inMemLRU) Table(name string) db.Table {
-	lruDB.tableMu.Lock()
-	defer lruDB.tableMu.Unlock()
+// Insert implements the `table` interface.
+func (table *lruTable) Insert(key string, value interface{}) error {
+	table.mutexLru(func(cache *lru.Cache) {
+		cache.Add(key, value)
+	})
 
-	table, ok := lruDB.tables[name]
-	if !ok {
-		table = NewLruTable(lruDB.db.Table(name), lruDB.maxEntries)
-		lruDB.tables[name] = table
+	return table.table.Insert(key, value)
+}
+
+// Get implements the `table` interface.
+func (table *lruTable) Get(key string, value interface{}) error {
+	var val interface{}
+	var ok bool
+	table.mutexLru(func(cache *lru.Cache) {
+		val, ok = cache.Get(key)
+	})
+
+	if ok {
+		dest := reflect.ValueOf(value)
+		if dest.Kind() == reflect.Ptr {
+			ptrDest := dest.Elem()
+			ptrDest.Set(reflect.ValueOf(val))
+			return nil
+		}
 	}
-	return table
+	return table.table.Get(key, value)
 }
 
-// Insert implements the `db.DB` interface.
-func (lruDB *inMemLRU) Insert(name string, key string, value interface{}) error {
-	table := lruDB.Table(name)
-	return table.Insert(key, value)
+// Delete implements the `table` interface.
+func (table *lruTable) Delete(key string) error {
+	table.mutexLru(func(cache *lru.Cache) {
+		cache.Remove(key)
+	})
+
+	return table.table.Delete(key)
 }
 
-// Get implements the `db.DB` interface.
-func (lruDB *inMemLRU) Get(name string, key string, value interface{}) error {
-	table := lruDB.Table(name)
-	return table.Get(key, value)
+// Size implements the `table` interface.
+func (table *lruTable) Size() (int, error) {
+	// NOTE: It does not make sense to return the cache's len because the cache
+	// might only have a subset of the actual data.
+	return table.table.Size()
 }
 
-// Delete implements the `db.DB` interface.
-func (lruDB *inMemLRU) Delete(name string, key string) error {
-	table := lruDB.Table(name)
-	return table.Delete(key)
+// Iterator implements the `table` interface.
+func (table *lruTable) Iterator() db.Iterator {
+	return table.table.Iterator()
 }
 
-// Size implements the `db.DB` interface.
-func (lruDB *inMemLRU) Size(name string) (int, error) {
-	table := lruDB.Table(name)
-	return table.Size()
-}
+// mutexLru takes a operation of the cache and lock/unlock the mutex before/after
+// the operation to make it concurrent safe.
+func (table *lruTable) mutexLru(operation func(*lru.Cache)) {
+	table.mu.Lock()
+	defer table.mu.Unlock()
 
-// Iterator implements the `db.DB` interface.
-func (lruDB *inMemLRU) Iterator(name string) (db.Iterator, error) {
-	table := lruDB.Table(name)
-	return table.Iterator()
+	operation(table.lru)
 }
