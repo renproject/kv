@@ -25,9 +25,9 @@ type Codec interface {
 	Decode(data []byte, value interface{}) error
 }
 
-// DB is a collection of tables. It allows user to maintain multiple tables
-// with the same underlying database driver. It will automatically creat a new
-// table when first time writing to it.
+// DB is a key-value database which requires the key to be a string and the value
+// can be encoded/decoded by the codec. It allows user to maintain multiple tables
+// with the same underlying database driver.
 type DB interface {
 
 	// Close will close the DB.

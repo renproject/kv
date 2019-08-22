@@ -33,37 +33,52 @@ There're two **Codec** we currently support `JsonCodec` and `GobCodec`.
 More details can be found from [JsonCodec](https://golang.org/pkg/encoding/json/) and [GobCodec](https://golang.org/pkg/encoding/gob/)
 
 ```go
-    codec := kv.JsonCodec
+    codec := kv.JSONCodec
     
     codec := kv.GobCodec
 
 ```
 
-### Table
+### DB
+DB is a key-value database which requires the key to be a string and the value can be encoded/decoded by the codec. 
+DB is also concurrent safe to use as long as the underlying implementation is. People can create multiple tables 
+using the safe DB. 
 
-A **Table** is a sql-like table for storing key-value pairs.
-It requires the key to be a non-empty string and the value to be able to be marshaled/unmarshaled by the provided **Codec**.
-
-Creating a Table:
+Creating a DB:
 ```go
 	// In-memory implementation 
-	table := kv.NewMemTable(kv.JsonCodec)
+	db := kv.NewMemDB(kv.JSONCodec)
 
-    // Leveldb implementation
-    ldb, err = leveldb.OpenFile("./.leveldb", nil)
-    handle(err)
-    table := kv.NewLevelTable("name", ldb, kv.JsonCodec)
+    // LevelDB implementation
+    db := kv.NewLevelDB("./.leveldb", kv.JsonCodec)
 
 	// BadgerDB implementation 
-	bdb, err:= badger.Open(badger.DefaultOptions("."))
-	handle(err)
-	table := kv.NewBadgerTable("name", bdb, kv.JsonCodec)
-	
-
+	db := kv.NewBadgerDB("./.badgerdb", kv.JsonCodec)
 
 ```
 
-Read, write and delete on a table :
+Read/Write directly though the DB. (It will initialize an empty table if the table of given name doesn't exist.)
+```go
+	err := db.Insert("key", "value")
+	handle(err)
+	var value string
+	err := db.Get("key", &value)
+	handle(err)
+	err := db.Delete("key")
+	handle(err)
+
+	size, err := db.Size("") // calling size will empty prefix returns the total size of the db.
+	handle(err)
+	iter := db.Iterator("prefix")
+```
+
+
+### Table
+
+Table is an abstraction over the DB that enforces a particular type of pattern in the key (i.e. same key prefix). 
+It requires the key to be a non-empty string and the value can be encoded/decoded by the used Codec.
+
+Usage:
 
 ```go
     type Ren struct{
@@ -71,7 +86,10 @@ Read, write and delete on a table :
         B int
         C []byte
     }
-    
+
+    // Initialize a table with given name and DB
+    table := kv.NewTable(db, "table_name")
+
     // Insert new data 
     ren := Ren{ "ren", 100, []byte{1,2,3}}
     err := table.Insert("key", ren)
@@ -81,6 +99,7 @@ Read, write and delete on a table :
     var newRen Ren
     err = table.Get("key", &newRen) // Make sure you pass a pointer here
     handle(err)
+
     fmt.Printf("old ren = %v\nnew ren = %v", ren, newRen)
     // old ren = {ren 100 [1 2 3]}
     // new ren = {ren 100 [1 2 3]} 	
@@ -92,10 +111,12 @@ Read, write and delete on a table :
 
 Iterating through the table 
 ```go
-    // The iterator will not be able to return data added after the iterator been created 
-    iter, err:= table.Iterator()
+    // Get size of the table 
+    size, err:= table.Size()
     handle(err)
-    
+
+    // The iterator will not be able to return data added after the iterator been created 
+    iter := table.Iterator()    
     for iter.Next(){
         key, err := iter.Key()
         handle(err)
@@ -105,44 +126,6 @@ Iterating through the table
     }
 ```
 
-### DB
-DB is a collection of tables. It is useful when you want to have multiple tables and use the same underlying database instance. (i.e. same badgerDB file). You can create new tables in the DB or accessing existing table by the table name.
-DB is also concurrent safe to use as long as the underlying implementation is. There're helper functions which allow you to manipulate on
-a specific table of the DB directly. Or your can get the table by it's name and calling functions from the table.
-
-Creating a DB:
-```go
-	// In-memory implementation 
-	db := kv.NewMemDB()
-
-    // LevelDB implementation 
-    ldb, err = leveldb.OpenFile("./.leveldb", nil)
-    handle(err)
-    db := kv.NewLevelDB(ldb, kv.JsonCodec)
-
-	// BadgerDB implementation 
-	bdb, err:= badger.Open(badger.DefaultOptions("."))
-	handle(err)
-	db := kv.NewBadgerDB(bdb, kv.JsonCodec)
-	
-
-```
-
-Read/Write directly though the DB. (It will initialize an empty table if the table of given name doesn't exist.)
-```go
-	db := kv.NewBadgerDB(bdb)
-	err = db.Insert("name", "key", "value")
-	handle(err)
-	var value string
-	err = db.Get("name", "key", &value)
-	handle(err)
-	err = db.Delete("name", "key")
-	handle(err)
-	size, err := db.Size("name")
-	handle(err)
-	iter, err := db.Iterator("name")
-	handle(err)
-```
 
 ### Benchmarks results
 

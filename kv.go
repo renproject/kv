@@ -33,9 +33,9 @@ var (
 )
 
 type (
-	// table is a sql-like table for storing key-value pairs. It requires the key
-	// to be a non-empty string and the value has the type which can be marshaled
-	// and unmarshaled by the used Codec.
+	// Table is an abstraction over the DB that enforces a particular type of
+	// pattern in the key (i.e. same key prefix). It requires the key to be a
+	// non-empty string and the value can be encoded/decoded by the used Codec.
 	Table = db.Table
 
 	// DB is able to add new table and does operations on certain table by its name.

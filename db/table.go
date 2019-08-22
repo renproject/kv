@@ -6,9 +6,9 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-// Table is a sql-like table for storing key-value pairs. It requires the key
-// to be a non-empty string and the value has the type which can be marshaled
-// and unmarshaled by the used Codec.
+// Table is an abstraction over the DB that enforces a particular type of
+// pattern in the key (i.e. same key prefix). It requires the key to be a
+// non-empty string and the value can be encoded/decoded by the used Codec.
 type Table interface {
 
 	// Insert writes the key-value into the table.
@@ -34,6 +34,7 @@ type table struct {
 	nameHash string
 }
 
+// NewTable creates a new table given name basing on provided DB.
 func NewTable(db DB, name string) Table {
 	hash := sha3.Sum256([]byte(name))
 	return &table{
@@ -42,26 +43,32 @@ func NewTable(db DB, name string) Table {
 	}
 }
 
+// Insert implements the Table interface.
 func (t *table) Insert(key string, value interface{}) error {
 	return t.db.Insert(t.keyWithPrefix(key), value)
 }
 
+// Get implements the Table interface.
 func (t *table) Get(key string, value interface{}) error {
 	return t.db.Get(t.keyWithPrefix(key), value)
 }
 
+// Delete implements the Table interface.
 func (t *table) Delete(key string) error {
 	return t.db.Delete(t.keyWithPrefix(key))
 }
 
+// Size implements the Table interface.
 func (t *table) Size() (int, error) {
 	return t.db.Size(t.keyWithPrefix(""))
 }
 
+// Iterator implements the Table interface.
 func (t *table) Iterator() Iterator {
 	return t.db.Iterator(t.keyWithPrefix(""))
 }
 
+// keyWithPrefix formats the key with table hash.
 func (t *table) keyWithPrefix(key string) string {
 	return fmt.Sprintf("%v_%v", t.nameHash, key)
 }

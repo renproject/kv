@@ -14,6 +14,7 @@ var Codecs = []db.Codec{
 	codec.GobCodec,
 }
 
+// DbInitalizer returns a list of initialize functions of different DB implementations.
 var DbInitalizer = []func(db.Codec) db.DB{
 	func(codec db.Codec) db.DB {
 		return memdb.New(codec)
