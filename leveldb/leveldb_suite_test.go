@@ -6,20 +6,11 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/renproject/kv/codec"
-	"github.com/renproject/kv/db"
 )
 
 func TestLeveldb(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Leveldb Suite")
-}
-
-// Codecs we want to test.
-var codecs = []db.Codec{
-	codec.JSONCodec,
-	codec.GobCodec,
 }
 
 // Creating a leveldb instance before running the entire test suite.

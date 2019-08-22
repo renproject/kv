@@ -48,40 +48,6 @@ type (
 	Iterator = db.Iterator
 )
 
-// In-memory implementation of the DB and table
-var (
-
-	// NewTable returns a in-memory implementation of the table interface.
-	NewMemTable = memdb.NewTable
-
-	// NewMemDB returns a key-value database that is implemented in-memory. This
-	// implementation is fast, but does not store data on-disk. It is safe for
-	// concurrent use.
-	NewMemDB = memdb.New
-)
-
-// BadgerDB implementation of the DB and table.
-var (
-	// NewBadgerTable returns a table with a badgerDB implementation. It is safe for
-	// concurrent use.
-	NewBadgerTable = badgerdb.NewTable
-
-	// NewBadgerDB returns a key-value database that is implemented using
-	// BadgerDB. For more information, see https://github.com/dgraph-io/badger.
-	NewBadgerDB = badgerdb.New
-)
-
-// LevelDB implementation of the DB and table.
-var (
-	// NewBadgerTable returns a table with a leveldb implementation. It is safe for
-	// concurrent use.
-	NewLevelTable = leveldb.NewTable
-
-	// NewLevelDB returns a key-value database that is implemented using
-	// levelDB. For more information, see https://github.com/syndtr/goleveldb.
-	NewLevelDB = leveldb.New
-)
-
 // Codecs
 var (
 	// JSONCodec is a json codec that marshals and unmarshals values using the
@@ -94,11 +60,27 @@ var (
 	GobCodec = codec.GobCodec
 )
 
-// DB wrappers
+// Initializing DB and table
 var (
-	// NewLRUCache wraps a given DB and creates a DB which has lru cache.
-	NewLRUCache = lru.New
+	// NewMemDB returns a key-value database that is implemented in-memory. This
+	// implementation is fast, but does not store data on-disk. It is safe for
+	// concurrent use.
+	NewMemDB = memdb.New
 
+	// NewBadgerDB returns a key-value database that is implemented using
+	// BadgerDB. For more information, see https://github.com/dgraph-io/badger.
+	NewBadgerDB = badgerdb.New
+
+	// NewLevelDB returns a key-value database that is implemented using
+	// levelDB. For more information, see https://github.com/syndtr/goleveldb.
+	NewLevelDB = leveldb.New
+
+	// NewTable returns a new table basing on the given DB and codec.
+	NewTable = db.NewTable
+)
+
+// Table wrappers
+var (
 	// NewLRUTable wraps a given Table and creates a Table which has lru cache.
 	NewLRUTable = lru.NewLruTable
 

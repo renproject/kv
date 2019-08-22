@@ -1,6 +1,7 @@
 package ttl_test
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing/quick"
@@ -10,165 +11,177 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/renproject/kv/cache/ttl"
 
-	"github.com/renproject/kv/codec"
 	"github.com/renproject/kv/db"
-	"github.com/renproject/kv/memdb"
 	"github.com/renproject/kv/testutil"
 )
 
-var codecs = []db.Codec{
-	codec.JSONCodec,
-	codec.GobCodec,
-}
-
 var _ = Describe("in-memory LRU cache", func() {
-	for i := range codecs {
-		codec := codecs[i]
+	for i := range testutil.Codecs {
+		for j := range testutil.DbInitalizer {
+			codec := testutil.Codecs[i]
+			initializer := testutil.DbInitalizer[j]
 
-		Context("when creating table", func() {
+			Context("when creating table", func() {
+				It("should be able to read and write values to the db", func() {
+					database := initializer(codec)
+					defer database.Close()
 
-			It("should be able to read and write values to the db", func() {
-				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
-					// Make sure the key is not nil
-					if key == "" {
+					readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
+						// Make sure the key is not nil
+						if key == "" {
+							return true
+						}
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						table := New(ctx, database, name, 10*time.Second, 5*time.Second)
+
+						val := testutil.TestStruct{D: []byte{}}
+						err := table.Get(key, &val)
+						Expect(err).Should(Equal(db.ErrKeyNotFound))
+
+						// Should be able to read the value after inserting.
+						Expect(table.Insert(key, value)).NotTo(HaveOccurred())
+						err = table.Get(key, &val)
+						Expect(err).NotTo(HaveOccurred())
+						Expect(reflect.DeepEqual(val, value)).Should(BeTrue())
+
+						// Expect no value exists after deleting the value.
+						Expect(table.Delete(key)).NotTo(HaveOccurred())
+						err = table.Get(key, &val)
+						Expect(err).Should(Equal(db.ErrKeyNotFound))
 						return true
 					}
 
-					ttlDB := New(memdb.New(codec), 10*time.Second, 5*time.Second, codec)
-					defer ttlDB.Close()
+					Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+				})
 
-					val := testutil.TestStruct{D: []byte{}}
-					err := ttlDB.Get(name, key, &val)
-					Expect(err).Should(Equal(db.ErrKeyNotFound))
+				It("should be able to iterate through the db using the iterator", func() {
+					database := initializer(codec)
+					defer database.Close()
 
-					// Should be able to read the value after inserting.
-					Expect(ttlDB.Insert(name, key, value)).NotTo(HaveOccurred())
-					err = ttlDB.Get(name, key, &val)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(reflect.DeepEqual(val, value)).Should(BeTrue())
+					iteration := func(name string, values []testutil.TestStruct) bool {
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						table := New(ctx, database, name, 10*time.Second, 5*time.Second)
 
-					// Expect no value exists after deleting the value.
-					Expect(ttlDB.Delete(name, key)).NotTo(HaveOccurred())
-					err = ttlDB.Get(name, key, &val)
-					Expect(err).Should(Equal(db.ErrKeyNotFound))
-					return true
-				}
+						// Insert all values and make a map for validation.
+						allValues := map[string]testutil.TestStruct{}
+						for i, value := range values {
+							key := fmt.Sprintf("%v", i)
+							Expect(table.Insert(key, value)).NotTo(HaveOccurred())
+							allValues[key] = value
+						}
 
-				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
-			})
+						size, err := table.Size()
+						Expect(err).NotTo(HaveOccurred())
+						Expect(size).Should(Equal(len(values)))
 
-			It("should be able to iterate through the db using the iterator", func() {
-				iteration := func(name string, values []testutil.TestStruct) bool {
-					ttlDB := New(memdb.New(codec), time.Second, 100*time.Millisecond, codec)
-					defer ttlDB.Close()
+						// Expect iterator gives us all the key-value pairs we insert.
+						iter := table.Iterator()
+						Expect(iter).ShouldNot(BeNil())
 
-					// Insert all values and make a map for validation.
-					allValues := map[string]testutil.TestStruct{}
-					for i, value := range values {
-						key := fmt.Sprintf("%v", i)
-						Expect(ttlDB.Insert(name, key, value)).NotTo(HaveOccurred())
-						allValues[key] = value
+						for iter.Next() {
+							key, err := iter.Key()
+							Expect(err).NotTo(HaveOccurred())
+							value := testutil.TestStruct{D: []byte{}}
+							err = iter.Value(&value)
+							Expect(err).NotTo(HaveOccurred())
+
+							stored, ok := allValues[key]
+							Expect(ok).Should(BeTrue())
+							Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
+							delete(allValues, key)
+							Expect(table.Delete(key)).Should(Succeed())
+						}
+						return len(allValues) == 0
 					}
 
-					size, err := ttlDB.Size(name)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(size).Should(Equal(len(values)))
-
-					// Expect iterator gives us all the key-value pairs we insert.
-					iter := ttlDB.Iterator(name)
-					Expect(iter).ShouldNot(BeNil())
-
-					for iter.Next() {
-						key, err := iter.Key()
-						Expect(err).NotTo(HaveOccurred())
-						value := testutil.TestStruct{D: []byte{}}
-						err = iter.Value(&value)
-						Expect(err).NotTo(HaveOccurred())
-
-						stored, ok := allValues[key]
-						Expect(ok).Should(BeTrue())
-						Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
-						delete(allValues, key)
-					}
-					return len(allValues) == 0
-				}
-
-				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+					Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+				})
 			})
-		})
 
-		Context("when doing operations with empty keys", func() {
-			It("should return ErrEmptyKey error", func() {
-				test := func(name string, value testutil.TestStruct) bool {
-					ttlDB := New(memdb.New(codec), time.Second, 100*time.Millisecond, codec)
-					defer ttlDB.Close()
+			Context("when doing operations with empty keys", func() {
+				It("should return ErrEmptyKey error", func() {
+					database := initializer(codec)
+					defer database.Close()
 
-					Expect(ttlDB.Insert(name, "", value)).Should(Equal(db.ErrEmptyKey))
-					Expect(ttlDB.Get(name, "", value)).Should(Equal(db.ErrEmptyKey))
-					Expect(ttlDB.Delete(name, "")).Should(Equal(db.ErrEmptyKey))
+					test := func(name string, value testutil.TestStruct) bool {
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						table := New(ctx, database, name, 10*time.Second, 5*time.Second)
 
-					return true
-				}
+						Expect(table.Insert("", value)).Should(Equal(db.ErrEmptyKey))
+						Expect(table.Get("", value)).Should(Equal(db.ErrEmptyKey))
+						Expect(table.Delete("")).Should(Equal(db.ErrEmptyKey))
 
-				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
-			})
-		})
-
-		Context("when reading and writing with data-expiration", func() {
-			It("should be able return error if the data has expired", func() {
-				readAndWrite := func(name, key string, value testutil.TestStruct) bool {
-					if key == "" {
 						return true
 					}
 
-					ttlDB := New(memdb.New(codec), 200*time.Millisecond, 100*time.Millisecond, codec)
-					defer ttlDB.Close()
-
-					newValue := testutil.TestStruct{D: []byte{}}
-					Expect(ttlDB.Get(name, key, &newValue)).Should(Equal(db.ErrKeyNotFound))
-					Expect(ttlDB.Insert(name, key, &value)).NotTo(HaveOccurred())
-					Expect(ttlDB.Get(name, key, &newValue)).NotTo(HaveOccurred())
-					Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
-
-					Eventually(func() error {
-						return ttlDB.Get(name, key, &newValue)
-					}, 2).Should(Equal(db.ErrKeyNotFound))
-
-					return true
-				}
-
-				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+				})
 			})
 
-			It("should be able to prune the database automatically", func() {
-				readAndWrite := func(name, key string, value testutil.TestStruct) bool {
-					if key == "" {
+			Context("when reading and writing with data-expiration", func() {
+				It("should be able to return error if the data has expired", func() {
+					database := initializer(codec)
+					defer database.Close()
+
+					test := func(name, key string, value testutil.TestStruct) bool {
+						if key == "" {
+							return true
+						}
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						table := New(ctx, database, name, 200*time.Millisecond, 100*time.Millisecond)
+						newValue := testutil.TestStruct{D: []byte{}}
+						Expect(table.Get(key, &newValue)).Should(Equal(db.ErrKeyNotFound))
+						Expect(table.Insert(key, &value)).NotTo(HaveOccurred())
+						Expect(table.Get(key, &newValue)).NotTo(HaveOccurred())
+						Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+
+						Eventually(func() error {
+							return table.Get(key, &newValue)
+						}, 2).Should(Equal(db.ErrKeyNotFound))
+
 						return true
 					}
 
-					ttlDB := New(memdb.New(codec), 200*time.Millisecond, 100*time.Millisecond, codec)
-					defer ttlDB.Close()
+					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+				})
 
-					newValue := testutil.TestStruct{D: []byte{}}
-					Expect(ttlDB.Get(name, key, &newValue)).Should(Equal(db.ErrKeyNotFound))
-					Expect(ttlDB.Insert(name, key, &value)).NotTo(HaveOccurred())
-					Expect(ttlDB.Get(name, key, &newValue)).NotTo(HaveOccurred())
-					Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
-					size, err := ttlDB.Size(name)
-					Expect(err).NotTo(HaveOccurred())
-					Expect(size).To(Equal(1))
+				It("should be able to prune the database automatically", func() {
+					database := initializer(codec)
+					defer database.Close()
 
-					Eventually(func() int {
-						size, err = ttlDB.Size(name)
+					readAndWrite := func(name, key string, value testutil.TestStruct) bool {
+						if key == "" {
+							return true
+						}
+
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						table := New(ctx, database, name, 200*time.Millisecond, 100*time.Millisecond)
+						newValue := testutil.TestStruct{D: []byte{}}
+						Expect(table.Get(key, &newValue)).Should(Equal(db.ErrKeyNotFound))
+						Expect(table.Insert(key, &value)).NotTo(HaveOccurred())
+						Expect(table.Get(key, &newValue)).NotTo(HaveOccurred())
+						Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+						size, err := table.Size()
 						Expect(err).NotTo(HaveOccurred())
-						return size
-					}, 2).Should(Equal(0))
+						Expect(size).To(Equal(1))
 
-					return true
-				}
+						Eventually(func() int {
+							size, err = table.Size()
+							Expect(err).NotTo(HaveOccurred())
+							return size
+						}, 2).Should(Equal(0))
 
-				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+						return true
+					}
+
+					Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+				})
 			})
-		})
+		}
 	}
 })

@@ -15,8 +15,8 @@ import (
 
 var _ = Describe("badger DB implementation of the db", func() {
 
-	for i := range codecs {
-		codec := codecs[i]
+	for i := range testutil.Codecs {
+		codec := testutil.Codecs[i]
 
 		Context("when doing operation on a badgerDB implementation of DB", func() {
 			It("should be able to do read, write and delete", func() {

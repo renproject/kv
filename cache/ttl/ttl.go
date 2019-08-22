@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"runtime"
 	"time"
 
 	"github.com/renproject/kv/db"
@@ -13,18 +12,19 @@ import (
 
 var (
 	// PrunePointerKey is the key of the key-value pair which we can use to
-	// query the current prune pointer.
+	// query the current prune pointer. This will always stored
 	PrunePointerKey = "prunePointer"
 )
 
 type inMemTTL struct {
 	nameHash      string
-	pruneCancel   context.CancelFunc
 	timeToLive    time.Duration
 	pruneInterval time.Duration
 	db            db.DB
 }
 
+// Insert the key into the table and also record timestamp associated the key
+// in a corresponding table in the db.
 func (ttlTable *inMemTTL) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -38,6 +38,7 @@ func (ttlTable *inMemTTL) Insert(key string, value interface{}) error {
 	return ttlTable.db.Insert(ttlTable.keyWithSlotPrefix(key, slot), key)
 }
 
+// Get implements the db.Table interface.
 func (ttlTable *inMemTTL) Get(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -46,6 +47,8 @@ func (ttlTable *inMemTTL) Get(key string, value interface{}) error {
 	return ttlTable.db.Get(ttlTable.keyWithPrefix(key), value)
 }
 
+// Delete only deletes the data, but not the timestamp which will be handled
+// by the prune function.
 func (ttlTable *inMemTTL) Delete(key string) error {
 	if key == "" {
 		return db.ErrEmptyKey
@@ -54,17 +57,19 @@ func (ttlTable *inMemTTL) Delete(key string) error {
 	return ttlTable.db.Delete(ttlTable.keyWithPrefix(key))
 }
 
+// Size implements the db.Table interface.
 func (ttlTable *inMemTTL) Size() (int, error) {
 	return ttlTable.db.Size(ttlTable.keyWithPrefix(""))
 }
 
+// Iterator implements the db.Table interface.
 func (ttlTable *inMemTTL) Iterator() db.Iterator {
 	return ttlTable.db.Iterator(ttlTable.keyWithPrefix(""))
 }
 
 // New returns a new ttl wrapper over the given database.
 // The underlying database cannot have any database has a prefix of `ttl_`.
-func New(database db.DB, name string, timeToLive time.Duration, pruneInterval time.Duration) db.Table {
+func New(ctx context.Context, database db.DB, name string, timeToLive time.Duration, pruneInterval time.Duration) db.Table {
 	hash := sha3.Sum256([]byte(name))
 	ttlDB := &inMemTTL{
 		nameHash:      string(hash[:]),
@@ -79,15 +84,10 @@ func New(database db.DB, name string, timeToLive time.Duration, pruneInterval ti
 		panic(fmt.Sprintf("cannot read prune pointer, err = %v", err))
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// NOTE: WE NEED TO TAKE A EXTERNAL CONTEXT TELLING US WHEN TO STOP PRUNING
+	// OR WHEN THE DB IS CLOSING. THIS IS BECAUSE WE NEED TO CREATE AN ITERATOR
+	// WHEN PRUNING AND IT CAN CAUSE PANIC IF THE UNDERLYING DB IS CLOSED.
 	go ttlDB.runPruneOnInterval(ctx, pointer)
-	runtime.SetFinalizer(ttlDB, func(_ interface{}) {
-		// WARNING: The `ttlDB` must be a pointer returned by calling `new`, or
-		// taking the address of a variable/composition. We do not actually care
-		// about doing anything to `ttlDB`, we just want to cancel the `ctx`.
-		cancel()
-	})
-
 	return ttlDB
 }
 
@@ -103,11 +103,13 @@ func (ttlTable *inMemTTL) runPruneOnInterval(ctx context.Context, pointer int64)
 			// todo : how can we catch if the error is caused by the underlying db been closed.
 			if err := ttlTable.prune(pointer); err != nil {
 				log.Printf("prune failed, err = %v", err)
+				return
 			}
 		}
 	}
 }
 
+// prune prune the table
 func (ttlTable *inMemTTL) prune(pointer int64) error {
 	newSlotToDelete := ttlTable.slotNo(time.Now().Add(-ttlTable.pruneInterval))
 	for slot := pointer + 1; slot <= newSlotToDelete; slot++ {

@@ -14,10 +14,10 @@ import (
 )
 
 var _ = Describe("lru cache table wrapper", func() {
-	for i := range codecs {
-		for j := range dbInitalizer {
-			codec := codecs[i]
-			initializer := dbInitalizer[j]
+	for i := range testutil.Codecs {
+		for j := range testutil.DbInitalizer {
+			codec := testutil.Codecs[i]
+			initializer := testutil.DbInitalizer[j]
 
 			Context("when creating a wrapped table.", func() {
 				It("should be able to read and write", func() {
