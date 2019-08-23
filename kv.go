@@ -33,9 +33,9 @@ var (
 )
 
 type (
-	// table is a sql-like table for storing key-value pairs. It requires the key
-	// to be a non-empty string and the value has the type which can be marshaled
-	// and unmarshaled by the used Codec.
+	// Table is an abstraction over the DB that enforces a particular type of
+	// pattern in the key (i.e. same key prefix). It requires the key to be a
+	// non-empty string and the value can be encoded/decoded by the used Codec.
 	Table = db.Table
 
 	// DB is able to add new table and does operations on certain table by its name.
@@ -46,40 +46,6 @@ type (
 
 	// Iterator is used to iterate through the data in the store.
 	Iterator = db.Iterator
-)
-
-// In-memory implementation of the DB and table
-var (
-
-	// NewTable returns a in-memory implementation of the table interface.
-	NewMemTable = memdb.NewTable
-
-	// NewMemDB returns a key-value database that is implemented in-memory. This
-	// implementation is fast, but does not store data on-disk. It is safe for
-	// concurrent use.
-	NewMemDB = memdb.New
-)
-
-// BadgerDB implementation of the DB and table.
-var (
-	// NewBadgerTable returns a table with a badgerDB implementation. It is safe for
-	// concurrent use.
-	NewBadgerTable = badgerdb.NewTable
-
-	// NewBadgerDB returns a key-value database that is implemented using
-	// BadgerDB. For more information, see https://github.com/dgraph-io/badger.
-	NewBadgerDB = badgerdb.New
-)
-
-// LevelDB implementation of the DB and table.
-var (
-	// NewBadgerTable returns a table with a leveldb implementation. It is safe for
-	// concurrent use.
-	NewLevelTable = leveldb.NewTable
-
-	// NewLevelDB returns a key-value database that is implemented using
-	// levelDB. For more information, see https://github.com/syndtr/goleveldb.
-	NewLevelDB = leveldb.New
 )
 
 // Codecs
@@ -94,11 +60,27 @@ var (
 	GobCodec = codec.GobCodec
 )
 
-// DB wrappers
+// Initializing DB and table
 var (
-	// NewLRUCache wraps a given DB and creates a DB which has lru cache.
-	NewLRUCache = lru.New
+	// NewMemDB returns a key-value database that is implemented in-memory. This
+	// implementation is fast, but does not store data on-disk. It is safe for
+	// concurrent use.
+	NewMemDB = memdb.New
 
+	// NewBadgerDB returns a key-value database that is implemented using
+	// BadgerDB. For more information, see https://github.com/dgraph-io/badger.
+	NewBadgerDB = badgerdb.New
+
+	// NewLevelDB returns a key-value database that is implemented using
+	// levelDB. For more information, see https://github.com/syndtr/goleveldb.
+	NewLevelDB = leveldb.New
+
+	// NewTable returns a new table basing on the given DB and codec.
+	NewTable = db.NewTable
+)
+
+// Table wrappers
+var (
 	// NewLRUTable wraps a given Table and creates a Table which has lru cache.
 	NewLRUTable = lru.NewLruTable
 

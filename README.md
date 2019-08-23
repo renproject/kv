@@ -38,122 +38,115 @@ A `Codec` is encodes `interface{}` values into bytes, decode bytes into the `int
 An example of using the `JSONCodec`:
 
 ```go
-// Init LevelDB
-ldb, err := leveldb.OpenFile("./db", nil)
-if err != nil {
-    log.Fatalf("error opening ldb file: %v", err)
-}
-// Init KV
-db := kv.NewLevelDB(kv.JsonCodec)
-```
-
-### Table
-
-A `Table` groups key/value pairs by automatically prefixing the key with a table name. Inserting a key/value pair into a table requires the key to be non-empty.
-
-Creating a Table:
-
-```go
-// In-memory implementation 
-table := kv.NewMemTable(kv.JsonCodec)
-
-// Leveldb implementation
-ldb, err = leveldb.OpenFile("./.leveldb", nil)
-handle(err)
-table := kv.NewLevelTable("name", ldb, kv.JsonCodec)
-
-// BadgerDB implementation 
-bdb, err:= badger.Open(badger.DefaultOptions("."))
-handle(err)
-table := kv.NewBadgerTable("name", bdb, kv.JsonCodec)
-```
-
-Read, write and delete on a table :
-
-```go
-    type Ren struct{
-        A string
-        B int
-        C []byte
-    }
-    
-    // Insert new data 
-    ren := Ren{ "ren", 100, []byte{1,2,3}}
-    err := table.Insert("key", ren)
-    handle(err)
-    
-    // Retrieve data 
-    var newRen Ren
-    err = table.Get("key", &newRen) // Make sure you pass a pointer here
-    handle(err)
-    fmt.Printf("old ren = %v\nnew ren = %v", ren, newRen)
-    // old ren = {ren 100 [1 2 3]}
-    // new ren = {ren 100 [1 2 3]} 	
-
-    // Delete data
-    err := table.Delete("key")
-    handle(err)
-```
-
-Iterating through the table 
-```go
-    // The iterator will not be able to return data added after the iterator been created 
-    iter, err:= table.Iterator()
-    handle(err)
-    
-    for iter.Next(){
-        key, err := iter.Key()
-        handle(err)
-        var value Ren 
-        err = iter.Value(&value)  // Make sure you pass a pointer here
-        handle(err)
-    }
+db := kv.NewLevelDB(".db", kv.JSONCodec)
 ```
 
 ### DB
-DB is a collection of tables. It is useful when you want to have multiple tables and use the same underlying database instance. (i.e. same badgerDB file). You can create new tables in the DB or accessing existing table by the table name.
-DB is also concurrent safe to use as long as the underlying implementation is. There're helper functions which allow you to manipulate on
-a specific table of the DB directly. Or your can get the table by it's name and calling functions from the table.
 
-Creating a DB:
+A `DB` is a key/value database. The key is a `string` and the value is an `interface{}` that can be encoded/decoded by the chosen `Codec` (different `DBs` can use different `Codecs`). A `DB` is safe for concurrent if, and only if, the underlying driver is safe for concurrent use (the LevelDB driver and BadgerDB driver are safe for concurrent use).
+
+An example of initialising a `DB`:
+
 ```go
-	// In-memory implementation 
-	db := kv.NewMemDB()
+// Initialising an in-memory database 
+db := kv.NewMemDB(kv.JSONCodec)
 
-    // LevelDB implementation 
-    ldb, err = leveldb.OpenFile("./.leveldb", nil)
-    handle(err)
-    db := kv.NewLevelDB(ldb, kv.JsonCodec)
+// Initialising a LevelDB database
+db = kv.NewLevelDB(".ldb", kv.JSONCodec)
 
-	// BadgerDB implementation 
-	bdb, err:= badger.Open(badger.DefaultOptions("."))
-	handle(err)
-	db := kv.NewBadgerDB(bdb, kv.JsonCodec)
-	
-
+// Initialising a BadgerDB database 
+db = kv.NewBadgerDB(".bdb", kv.JSONCodec)
 ```
 
-Read/Write directly though the DB. (It will initialize an empty table if the table of given name doesn't exist.)
+Although reading/writing is usually done through a `Table`, you can read/write using the `DB` directly (you must be careful that keys will not conflict with `Table` name hashes):
+
 ```go
-	db := kv.NewBadgerDB(bdb)
-	err = db.Insert("name", "key", "value")
-	handle(err)
-	var value string
-	err = db.Get("name", "key", &value)
-	handle(err)
-	err = db.Delete("name", "key")
-	handle(err)
-	size, err := db.Size("name")
-	handle(err)
-	iter, err := db.Iterator("name")
-	handle(err)
+// Write
+if err := db.Insert("key", "value"); err != nil {
+    log.Fatalf("error inserting: %v", err)
+}
+
+// Read
+var value string
+if err := db.Get("key", &value); err != nil {
+    log.Fatalf("error getting: %v", err)
+}
+
+// Delete
+if err := db.Delete("key"); err != nil {
+    log.Fatalf("error deleting: %v", err)
+}
+
+// Number of key/value pairs with the given prefix
+size, err := db.Size("")
+if err != nil {
+    log.Fatalf("error sizing: %v", err)
+}
+log.Printf("%v key/value pairs found", size)
+
+// Get an iterator over all key/value pairs with the given prefix
+iter := db.Iterator("")
 ```
 
-### Benchmarks results
+
+### Table
+
+A `Table` is an abstraction over a `DB` partitions key/value pairs into non-overlapping groups. This allows you to iterate over small groups of key/value pairs that are logically related. You must ensure that `Table` names are unique.
+
+An example of basic use:
+
+```go
+type Foo struct{
+    A string
+    B int
+    C []byte
+}
+
+// Init
+table := kv.NewTable(db, "myAwesomeTable")
+
+// Write
+foo := Foo{"foo", 420, []byte{1,2,3}}
+if err := table.Insert("key", foo); err != nil {
+    log.Fatalf("error inserting into table: %v", err)
+}
+
+// Read
+bar := Foo{}
+if err := table.Get("key", &bar); err != nil {
+    log.Fatalf("error getting from table: %v", err)
+}
+```
+
+The most useful feature of `Tables` is iteration:
+
+```go
+// Get the number of key/value pairs in the table
+size, err := table.Size()
+if err != nil {
+    log.Fatalf("error sizing table: %v", err)
+}
+log.Printf("%v key/value pairs found", size)
+
+// Iterate over all key/value pairs in the table
+for iter := table.Iterator(); iter.Next(); {
+    key, err := iter.Key()
+    if err != nil {
+        continue
+    }
+    value := Foo{}
+    if err = iter.Value(&value); err != nil {
+        continue
+    }
+}
+```
+
+Benchmarks
+----------
 
 | Database | Number of iterations run | Time (ns/op) | Memory (bytes/op) |
 |----------|:------------------------:|-------------:|-------------------|
-| LevelDB  |           2000           |     10784337 | 4397224           |
+| LevelDB  |           2000           |     10784337 |   4397224         |
 | BadgerDB |            100           |    200012411 | 200012411         |
 
 Contributors

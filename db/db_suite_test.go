@@ -1,20 +1,21 @@
-package ttl_test
+package db_test
 
 import (
 	"os/exec"
-	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"testing"
 )
 
-func TestTtl(t *testing.T) {
+func TestDb(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Ttl Suite")
+	RunSpecs(t, "Db Suite")
 }
 
 // Clean the badgerDB instance after each test
 var _ = JustAfterEach(func() {
-	Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
 	Expect(exec.Command("rm", "-rf", "./.leveldb").Run()).NotTo(HaveOccurred())
+	Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
 })

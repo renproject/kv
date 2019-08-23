@@ -17,20 +17,23 @@ jobs:
       - run:
           name: Building and testing
           command: |
-            go build ./...
+            go get -u golang.org/x/lint/golint
             go get -u golang.org/x/crypto/...
             go get -u github.com/onsi/ginkgo/ginkgo
             go get -u github.com/onsi/gomega/...
-            /go/bin/ginkgo -v --race ./...
-#            TODO: RE-ENABLE THIS WHEN COVERALL HAS BEEN FIXED
-#            go get -u github.com/loongy/covermerge
-#            go get -u github.com/mattn/goveralls
-#            CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
-#            /go/bin/covermerge          \
-#              badgerdb/coverprofile.out \
-#              cache/coverprofile.out    \
-#              memdb/coverprofile.out > coverprofile.out
-#            /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
+            go get -u github.com/loongy/covermerge
+            go get -u github.com/mattn/goveralls
+            go vet ./...
+            golint ./...
+            CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
+            /go/bin/covermerge              \
+              cache/lru/coverprofile.out    \
+              cache/ttl/coverprofile.out    \
+              leveldb/coverprofile.out      \
+              badgerdb/coverprofile.out     \
+              db/coverprofile.out           \
+              memdb/coverprofile.out > coverprofile.out
+            /go/bin/goveralls -coverprofile=coverprofile.out -service=circleci -repotoken $COVERALLS_REPO_TOKEN
       - save_cache:
           key: go-mod-v3-{{ checksum "go.sum" }}
           paths:
