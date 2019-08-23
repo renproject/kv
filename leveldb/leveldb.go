@@ -24,7 +24,7 @@ func New(path string, codec db.Codec) db.DB {
 
 	ldb, err := leveldb.OpenFile(path, nil)
 	if err != nil {
-		panic(fmt.Sprintf("fail to initialize leveldb, err = %v", err))
+		panic(fmt.Sprintf("error initialising leveldb: %v", err))
 	}
 
 	return &levelDB{

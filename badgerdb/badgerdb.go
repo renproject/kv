@@ -24,7 +24,7 @@ func New(path string, codec db.Codec) db.DB {
 	opts := badger.DefaultOptions(path)
 	db, err := badger.Open(opts)
 	if err != nil {
-		panic(fmt.Sprintf("fail to initialize badgerDB, err = %v", err))
+		panic(fmt.Sprintf("error initialising badgerdb: %v", err))
 	}
 
 	bdb := &badgerDB{
