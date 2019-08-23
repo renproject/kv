@@ -1,64 +1,97 @@
 package badgerdb
 
 import (
+	"bytes"
+	"fmt"
+	"time"
+
 	"github.com/dgraph-io/badger"
 	"github.com/renproject/kv/db"
 )
 
-// bdb is a badgerDB implementation of the `db.Iterable`.
-type bdb struct {
-	db *badger.DB
+// badgerDB is a badgerDB implementation of the `db.Iterable`.
+type badgerDB struct {
+	db    *badger.DB
+	codec db.Codec
 }
 
 // New returns a new `db.Iterable`.
-func New(db *badger.DB) db.Iterable {
-	return &bdb{
-		db: db,
+func New(path string, codec db.Codec) db.DB {
+	if codec == nil {
+		panic("codec cannot be nil")
 	}
+
+	opts := badger.DefaultOptions(path)
+	db, err := badger.Open(opts)
+	if err != nil {
+		panic(fmt.Sprintf("error initialising badgerdb: %v", err))
+	}
+
+	bdb := &badgerDB{
+		db:    db,
+		codec: codec,
+	}
+
+	go bdb.gc()
+
+	return bdb
 }
 
-// Insert implements the `db.Iterable` interface
-func (bdb *bdb) Insert(key string, value []byte) error {
-	err := bdb.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte(key), value)
+// Close implements the `db.DB` interface.
+func (bdb *badgerDB) Close() error {
+	return bdb.db.Close()
+}
+
+// Insert implements the `db.DB` interface.
+func (bdb *badgerDB) Insert(key string, value interface{}) error {
+	data, err := bdb.codec.Encode(value)
+	if err != nil {
+		return err
+	}
+
+	err = bdb.db.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(key), data)
 	})
-	if err == badger.ErrEmptyKey {
+	return convertErr(err)
+}
+
+// Get implements the `db.DB` interface.
+func (bdb *badgerDB) Get(key string, value interface{}) error {
+	if key == "" {
 		return db.ErrEmptyKey
 	}
-	return err
-}
-
-// Get implements the `db.Iterable` interface
-func (bdb *bdb) Get(key string) (ret []byte, err error) {
-	err = bdb.db.View(func(txn *badger.Txn) error {
+	err := bdb.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get([]byte(key))
 		if err != nil {
 			return err
 		}
-		return item.Value(func(val []byte) error {
-			ret = make([]byte, len(val))
-			copy(ret, val)
-			return nil
-		})
+
+		data, err := item.ValueCopy(nil)
+		if err != nil {
+			return err
+		}
+		return bdb.codec.Decode(data, value)
 	})
-	if err == badger.ErrKeyNotFound {
-		err = db.ErrNotFound
-	}
-	return
+	return convertErr(err)
 }
 
-// Delete implements the `db.Iterable` interface
-func (db *bdb) Delete(key string) error {
-	return db.db.Update(func(txn *badger.Txn) error {
+// Delete implements the `db.DB` interface.
+func (bdb *badgerDB) Delete(key string) error {
+	if key == "" {
+		return db.ErrEmptyKey
+	}
+	err := bdb.db.Update(func(txn *badger.Txn) error {
 		return txn.Delete([]byte(key))
 	})
+	return convertErr(err)
 }
 
-// Size implements the `db.Iterable` interface
-func (db *bdb) Size() (int, error) {
+// Size implements the `db.DB` interface.
+func (bdb *badgerDB) Size(prefix string) (int, error) {
 	count := 0
-	err := db.db.View(func(txn *badger.Txn) error {
+	err := bdb.db.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
+		opts.Prefix = []byte(prefix)
 		it := txn.NewIterator(opts)
 		defer it.Close()
 		for it.Rewind(); it.Valid(); it.Next() {
@@ -66,43 +99,57 @@ func (db *bdb) Size() (int, error) {
 		}
 		return nil
 	})
-
 	return count, err
 }
 
-// Iterator implements the `db.Iterable` interface
-func (db *bdb) Iterator() db.Iterator {
-	tx := db.db.NewTransaction(false)
-	iter := tx.NewIterator(badger.DefaultIteratorOptions)
+// Iterator implements the `db.DB` interface.
+func (bdb *badgerDB) Iterator(prefix string) db.Iterator {
+	tx := bdb.db.NewTransaction(false)
+	opts := badger.DefaultIteratorOptions
+	opts.Prefix = []byte(prefix)
+	iter := tx.NewIterator(opts)
 	iter.Rewind()
-	return &Iterator{
-		isFirst:  true,
-		isClosed: false,
-		tx:       tx,
-		iter:     iter,
+	return &iterator{
+		prefix:      []byte(prefix),
+		initialized: false,
+		tx:          tx,
+		iter:        iter,
+		codec:       bdb.codec,
 	}
 }
 
-// Iterator implements the `db.Iterator` interface.
-type Iterator struct {
-	isFirst  bool
-	isClosed bool
-	tx       *badger.Txn
-	iter     *badger.Iterator
+func (bdb *badgerDB) gc() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		err := bdb.db.RunValueLogGC(0.5)
+		if err != nil {
+			return
+		}
+	}
+}
+
+// iterator implements the `db.Iterator` interface.
+type iterator struct {
+	prefix      []byte
+	initialized bool
+	tx          *badger.Txn
+	iter        *badger.Iterator
+	codec       db.Codec
 }
 
 // Next implements the `db.Iterator` interface.
-func (iter *Iterator) Next() bool {
-	if iter.isClosed {
-		return false
-	}
-	if iter.isFirst {
-		iter.isFirst = false
+func (iter *iterator) Next() bool {
+	if !iter.initialized {
+		iter.initialized = true
 	} else {
+		if !iter.iter.Valid() {
+			return false
+		}
 		iter.iter.Next()
 	}
+
 	if valid := iter.iter.Valid(); !valid {
-		iter.isClosed = true
 		iter.iter.Close()
 		iter.tx.Discard()
 		return false
@@ -111,23 +158,34 @@ func (iter *Iterator) Next() bool {
 }
 
 // Key implements the `db.Iterator` interface.
-func (iter *Iterator) Key() (string, error) {
-	if iter.isClosed || !iter.iter.Valid() {
+func (iter *iterator) Key() (string, error) {
+	if !iter.initialized || !iter.iter.Valid() {
 		return "", db.ErrIndexOutOfRange
 	}
-	return string(iter.iter.Item().Key()), nil
+	key := iter.iter.Item().Key()
+	return string(bytes.TrimPrefix(key, iter.prefix)), nil
 }
 
 // Value implements the `db.Iterator` interface.
-func (iter *Iterator) Value() (ret []byte, err error) {
-	if iter.isClosed || !iter.iter.Valid() {
-		err = db.ErrIndexOutOfRange
-		return
+func (iter *iterator) Value(value interface{}) error {
+	if !iter.initialized || !iter.iter.Valid() {
+		return db.ErrIndexOutOfRange
 	}
-	err = iter.iter.Item().Value(func(val []byte) error {
-		ret = make([]byte, len(val))
-		copy(ret, val)
-		return nil
-	})
-	return
+	data, err := iter.iter.Item().ValueCopy(nil)
+	if err != nil {
+		return err
+	}
+	return iter.codec.Decode(data, value)
+}
+
+// convertErr will convert badgerDB-specific error to kv error.
+func convertErr(err error) error {
+	switch err {
+	case badger.ErrEmptyKey:
+		return db.ErrEmptyKey
+	case badger.ErrKeyNotFound:
+		return db.ErrKeyNotFound
+	default:
+		return err
+	}
 }

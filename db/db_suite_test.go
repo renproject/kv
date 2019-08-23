@@ -1,13 +1,21 @@
 package db_test
 
 import (
-	"testing"
+	"os/exec"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"testing"
 )
 
-func TestDB(t *testing.T) {
+func TestDb(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "DB Suite")
+	RunSpecs(t, "Db Suite")
 }
+
+// Clean the badgerDB instance after each test
+var _ = JustAfterEach(func() {
+	Expect(exec.Command("rm", "-rf", "./.leveldb").Run()).NotTo(HaveOccurred())
+	Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
+})

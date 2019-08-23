@@ -2,31 +2,44 @@ package kv_test
 
 import (
 	"math/rand"
-	"os/exec"
+	"reflect"
 	"testing"
 
-	"github.com/dgraph-io/badger"
-	bdb "github.com/renproject/kv/badgerdb"
-	"github.com/renproject/kv/db"
-	ldb "github.com/renproject/kv/leveldb"
-	"github.com/syndtr/goleveldb/leveldb"
-
 	. "github.com/onsi/gomega"
+
+	"github.com/renproject/kv/badgerdb"
+	"github.com/renproject/kv/cache/lru"
+	"github.com/renproject/kv/codec"
+	"github.com/renproject/kv/db"
+	"github.com/renproject/kv/leveldb"
+	"github.com/renproject/kv/testutil"
 )
 
 const (
-	benchmarkReads  = 10
-	benchmarkWrites = 100
+	benchmarkReads  = 10000
+	benchmarkWrites = 1000
+	cacheLimit      = 100
 )
 
 func BenchmarkLevelDB(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		func() {
-			leveldb := initLevelDB()
-			defer closeLevelDB(leveldb)
+			lDB := leveldb.New(".leveldb", codec.JSONCodec)
+			defer lDB.Close()
 
-			lDB := ldb.New(leveldb)
 			benchmarkDB(lDB)
+		}()
+	}
+}
+
+func BenchmarkLevelDBWithLRUCache(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		func() {
+			lDB := leveldb.New(".leveldb", codec.JSONCodec)
+			defer lDB.Close()
+
+			table := lru.NewLruTable(db.NewTable(lDB, "lru"), cacheLimit)
+			benchmarkTable(table)
 		}()
 	}
 }
@@ -34,60 +47,64 @@ func BenchmarkLevelDB(b *testing.B) {
 func BenchmarkBadgerDB(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		func() {
-			badgerDB := initBadgerDB()
-			defer closeBadgerDB(badgerDB)
+			badgerDB := badgerdb.New(".badgerdb", codec.JSONCodec)
+			defer badgerDB.Close()
 
-			bDB := bdb.New(badgerDB)
-			benchmarkDB(bDB)
+			benchmarkDB(badgerDB)
 		}()
+	}
+}
 
+func BenchmarkBadgerDBWithLRUCache(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		func() {
+			badgerDB := badgerdb.New(".badgerdb", codec.JSONCodec)
+			defer badgerDB.Close()
+
+			table := lru.NewLruTable(db.NewTable(badgerDB, "lru"), cacheLimit)
+			benchmarkTable(table)
+		}()
 	}
 }
 
 func benchmarkDB(database db.DB) {
 	key := "testKey"
 
+	vals := make([]testutil.TestStruct, benchmarkWrites)
+
 	for i := 0; i < benchmarkWrites; i++ {
 		newKey := key + string(i)
-		value := randBytes()
-		Expect(database.Insert(newKey, value)).NotTo(HaveOccurred())
+		vals[i] = testutil.RandomTestStruct()
+		Expect(database.Insert(newKey, vals[i])).NotTo(HaveOccurred())
 	}
 
 	for i := 0; i < benchmarkReads; i++ {
-		queryKey := key + string(rand.Intn(benchmarkWrites))
-		_, err := database.Get(queryKey)
+		queryIndex := rand.Intn(benchmarkWrites)
+		queryKey := key + string(queryIndex)
+		val := testutil.TestStruct{D: []byte{}}
+		err := database.Get(queryKey, &val)
 		Expect(err).NotTo(HaveOccurred())
+		Expect(reflect.DeepEqual(val, vals[queryIndex])).Should(BeTrue())
 	}
 }
 
-func initBadgerDB() *badger.DB {
-	Expect(exec.Command("mkdir", "-p", ".badgerdb").Run()).NotTo(HaveOccurred())
-	opts := badger.DefaultOptions("./.badgerdb")
-	opts.Dir = "./.badgerdb"
-	opts.ValueDir = "./.badgerdb"
-	db, err := badger.Open(opts.WithLogger(nil))
-	Expect(err).NotTo(HaveOccurred())
-	return db
-}
+func benchmarkTable(table db.Table) {
+	key := "testKey"
 
-func closeBadgerDB(db *badger.DB) {
-	Expect(db.Close()).NotTo(HaveOccurred())
-	Expect(exec.Command("rm", "-rf", "./.badgerdb").Run()).NotTo(HaveOccurred())
-}
+	vals := make([]testutil.TestStruct, benchmarkWrites)
 
-func initLevelDB() *leveldb.DB {
-	db, err := leveldb.OpenFile("./.leveldb", nil)
-	Expect(err).NotTo(HaveOccurred())
-	return db
-}
+	for i := 0; i < benchmarkWrites; i++ {
+		newKey := key + string(i)
+		vals[i] = testutil.RandomTestStruct()
+		Expect(table.Insert(newKey, vals[i])).NotTo(HaveOccurred())
+	}
 
-func closeLevelDB(db *leveldb.DB) {
-	Expect(db.Close()).NotTo(HaveOccurred())
-	Expect(exec.Command("rm", "-rf", "./.leveldb").Run()).NotTo(HaveOccurred())
-}
-
-func randBytes() []byte {
-	data := make([]byte, rand.Intn(100))
-	rand.Read(data)
-	return data[:]
+	for i := 0; i < benchmarkReads; i++ {
+		queryIndex := rand.Intn(benchmarkWrites)
+		queryKey := key + string(queryIndex)
+		val := testutil.TestStruct{D: []byte{}}
+		err := table.Get(queryKey, &val)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reflect.DeepEqual(val, vals[queryIndex])).Should(BeTrue())
+	}
 }

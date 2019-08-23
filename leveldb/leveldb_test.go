@@ -1,9 +1,8 @@
 package leveldb_test
 
 import (
-	"bytes"
 	"fmt"
-	"os/exec"
+	"reflect"
 	"testing/quick"
 
 	. "github.com/onsi/ginkgo"
@@ -11,140 +10,285 @@ import (
 	. "github.com/renproject/kv/leveldb"
 
 	"github.com/renproject/kv/db"
-	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/renproject/kv/testutil"
 )
 
-var _ = Describe("levelDB implementation of key-value Store", func() {
+var _ = Describe("level DB implementation of the db", func() {
 
-	initDB := func() *leveldb.DB {
-		db, err := leveldb.OpenFile("./.leveldb", nil)
-		Expect(err).NotTo(HaveOccurred())
-		return db
-	}
+	for i := range testutil.Codecs {
+		codec := testutil.Codecs[i]
 
-	closeDB := func(db *leveldb.DB) {
-		Expect(db.Close()).NotTo(HaveOccurred())
-		Expect(exec.Command("rm", "-rf", "./.leveldb").Run()).NotTo(HaveOccurred())
-	}
+		Context("when doing operation on a leveldb implementation of DB ", func() {
+			It("should be able to do read, write and delete", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
 
-	Context("when reading and writing", func() {
-		It("should be able read and write value", func() {
-			leveldb := initDB()
-			defer closeDB(leveldb)
+				readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
+					// Make sure the key is not nil
+					if key == "" {
+						return true
+					}
+					val := testutil.TestStruct{D: []byte{}}
+					err := levelDB.Get(key, &val)
+					Expect(err).Should(Equal(db.ErrKeyNotFound))
 
-			readAndWrite := func(key string, value []byte) bool {
-				ldb := New(leveldb)
-				if key == ""{
+					// Should be able to read the value after inserting.
+					Expect(levelDB.Insert(key, value)).NotTo(HaveOccurred())
+					err = levelDB.Get(key, &val)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(reflect.DeepEqual(val, value)).Should(BeTrue())
+
+					// Expect no value exists after deleting the value.
+					Expect(levelDB.Delete(key)).NotTo(HaveOccurred())
+					err = levelDB.Get(key, &val)
+					Expect(err).Should(Equal(db.ErrKeyNotFound))
+
 					return true
 				}
 
-				// Expect not value exists in the db with the given key.
-				_, err := ldb.Get(key)
-				Expect(err).Should(Equal(db.ErrNotFound))
+				Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+			})
 
-				// Should be able to read the value after inserting.
-				Expect(ldb.Insert(key, value)).NotTo(HaveOccurred())
-				data, err := ldb.Get(key)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(bytes.Compare(data, value)).Should(BeZero())
+			It("should be able to iterable through the db using the iter", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
 
-				// Expect no value exists after deleting the value.
-				Expect(ldb.Delete(key)).NotTo(HaveOccurred())
-				_, err = ldb.Get(key)
-				return err == db.ErrNotFound
-			}
-			Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
-		})
+				iteration := func(name string, values []testutil.TestStruct) bool {
+					// Insert all values and make a map for validation.
+					allValues := map[string]testutil.TestStruct{}
+					for i, value := range values {
+						key := fmt.Sprintf("%v%v", name, i)
+						Expect(levelDB.Insert(key, value)).NotTo(HaveOccurred())
+						allValues[fmt.Sprintf("%v", i)] = value
+					}
 
-		It("should be able to iterable through the db using the iterator", func() {
-			leveldb := initDB()
-			defer closeDB(leveldb)
-
-			iteration := func(values [][]byte) bool {
-				ldb := New(leveldb)
-
-				// Insert all values and make a map for validation.
-				allValues := map[string][]byte{}
-				for i, value := range values {
-					key := fmt.Sprintf("%v", i)
-					Expect(ldb.Insert(key, value)).NotTo(HaveOccurred())
-					allValues[key] = value
-				}
-
-				// Expect db size to the number of values we insert.
-				size, err := ldb.Size()
-				Expect(err).NotTo(HaveOccurred())
-				Expect(size).Should(Equal(len(values)))
-
-				// Expect iterator gives us all the key-value pairs we insert.
-				iter := ldb.Iterator()
-				for iter.Next() {
-					key, err := iter.Key()
+					size, err := levelDB.Size(name)
 					Expect(err).NotTo(HaveOccurred())
-					value, err := iter.Value()
-					Expect(err).NotTo(HaveOccurred())
-					Expect(ldb.Delete(key)).NotTo(HaveOccurred())
+					Expect(size).Should(Equal(len(values)))
 
-					stored, ok := allValues[key]
-					Expect(ok).Should(BeTrue())
-					Expect(bytes.Compare(value, stored)).Should(BeZero())
-					delete(allValues, key)
-				}
-				return len(allValues) == 0
-			}
+					// Expect iter gives us all the key-value pairs we insert.
+					iter := levelDB.Iterator(name)
+					Expect(iter).ShouldNot(BeNil())
 
-			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
-		})
+					for iter.Next() {
+						key, err := iter.Key()
+						Expect(err).NotTo(HaveOccurred())
+						value := testutil.TestStruct{D: []byte{}}
+						err = iter.Value(&value)
+						Expect(err).NotTo(HaveOccurred())
 
-		It("should return error when trying to get key/value when the iterator doesn't have next value", func() {
-			leveldb := initDB()
-			defer closeDB(leveldb)
-
-			iteration := func(key string, value []byte) bool {
-				ldb := New(leveldb)
-				iter := ldb.Iterator()
-
-				for iter.Next() {
+						stored, ok := allValues[key]
+						Expect(ok).Should(BeTrue())
+						Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
+						delete(allValues, key)
+						Expect(levelDB.Delete(name + key)).Should(Succeed())
+					}
+					return len(allValues) == 0
 				}
 
-				_, err := iter.Key()
-				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
-				_, err = iter.Value()
-				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
-				return iter.Next() == false
-			}
-
-			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+			})
 		})
 
-		It("should return error when trying to get key/value without calling Next()", func() {
-			leveldb := initDB()
-			defer closeDB(leveldb)
+		// Context("when doing operations on multiple tables using the same DB", func() {
+		// 	It("should work properly when doing reading and writing", func() {
+		// 		levelDB := New(".leveldb", codec)
+		// 		defer levelDB.Close()
+		//
+		// 		readAndWrite := func() bool {
+		// 			names := testutil.RandomNonDupStrings(20)
+		// 			testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
+		// 			errs := make([]error, len(names))
+		//
+		// 			// Should be able to concurrently read and write data of different tables.
+		// 			phi.ParForAll(names, func(i int) {
+		// 				entries := testEntries[i]
+		//
+		// 				errs[i] = func() error {
+		// 					// Inserting all data entries
+		// 					for j, entry := range entries {
+		// 						err := levelDB.Insert(names[i], fmt.Sprintf("%v", j), entry)
+		// 						if err != nil {
+		// 							return err
+		// 						}
+		// 					}
+		//
+		// 					// Check the size function returning the right size of the Table.
+		// 					size, err := levelDB.Size(names[i])
+		// 					if err != nil {
+		// 						return err
+		//
+		// 					}
+		// 					if size != len(entries) {
+		// 						return fmt.Errorf("test failed, unexpected Table size, expect = %v, got = %v", len(entries), size)
+		// 					}
+		//
+		// 					// Retrieve all data entries
+		// 					for j, entry := range entries {
+		// 						storedEntry := testutil.TestStruct{D: []byte{}}
+		// 						err := levelDB.Get(names[i], fmt.Sprintf("%v", j), &storedEntry)
+		// 						if err != nil {
+		// 							return err
+		//
+		// 						}
+		// 						if !reflect.DeepEqual(storedEntry, entry) {
+		// 							return fmt.Errorf("fail to retrieve data from the Table %v", names[i])
+		// 						}
+		// 						Expect(levelDB.Delete(names[i], fmt.Sprintf("%v", j))).Should(Succeed())
+		// 					}
+		// 					return nil
+		// 				}()
+		// 			})
+		// 			Expect(testutil.CheckErrors(errs)).Should(BeNil())
+		//
+		// 			return true
+		// 		}
+		//
+		// 		Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+		// 	})
+		//
+		// 	It("should working properly when iterating each Table at the same time", func() {
+		// 		levelDB := New(".leveldb", codec)
+		// 		defer levelDB.Close()
+		//
+		// 		iteration := func() bool {
+		// 			names := testutil.RandomNonDupStrings(20)
+		// 			testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
+		// 			errs := make([]error, len(names))
+		//
+		// 			// Should be able to concurrently iterating different tables.
+		// 			phi.ParForAll(names, func(i int) {
+		// 				entries := testEntries[i]
+		//
+		// 				errs[i] = func() error {
+		// 					// Inserting all data entries
+		// 					allValues := map[string]testutil.TestStruct{}
+		// 					for j, entry := range entries {
+		// 						key := fmt.Sprintf("%v", j)
+		// 						err := levelDB.Insert(names[i], fmt.Sprintf("%v", j), entry)
+		// 						if err != nil {
+		// 							return err
+		// 						}
+		// 						allValues[key] = entry
+		// 					}
+		//
+		// 					// Expect iter gives us all the key-value pairs we inserted.
+		// 					iter := levelDB.Iterator(names[i])
+		// 					for iter.Next() {
+		// 						key, err := iter.Key()
+		// 						if err != nil {
+		// 							return err
+		// 						}
+		// 						value := testutil.TestStruct{D: []byte{}}
+		// 						err = iter.Value(&value)
+		// 						if err != nil {
+		// 							return err
+		// 						}
+		//
+		// 						stored, ok := allValues[key]
+		// 						if err != nil {
+		// 							return err
+		// 						}
+		// 						if !ok {
+		// 							return errors.New("test failed, iter has new values inserted after the iter been created ")
+		// 						}
+		// 						if !reflect.DeepEqual(value, stored) {
+		// 							return errors.New("test failed, stored value different are different")
+		// 						}
+		// 						delete(allValues, key)
+		// 						Expect(levelDB.Delete(names[i], key)).Should(Succeed())
+		// 					}
+		// 					return nil
+		// 				}()
+		// 			})
+		// 			Expect(testutil.CheckErrors(errs)).Should(BeNil())
+		//
+		// 			return true
+		// 		}
+		//
+		// 		Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+		// 	})
+		// })
 
-			iteration := func(key string, value []byte) bool {
-				ldb := New(leveldb)
-				iter := ldb.Iterator()
+		Context("when operating with empty key", func() {
+			It("should return ErrEmptyKey error", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
 
-				_, err := iter.Key()
-				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
-				_, err = iter.Value()
-				Expect(err).Should(Equal(db.ErrIndexOutOfRange))
-				return iter.Next() == false
-			}
+				test := func() bool {
+					err := levelDB.Insert("", "")
+					Expect(err).Should(Equal(db.ErrEmptyKey))
 
-			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+					var val string
+					err = levelDB.Get("", &val)
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					err = levelDB.Delete("")
+					Expect(err).Should(Equal(db.ErrEmptyKey))
+
+					return true
+				}
+
+				Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+			})
 		})
 
-		It("should return ErrEmptyKey when trying to insert a value with empty key", func() {
-			leveldb := initDB()
-			defer closeDB(leveldb)
+		Context("when iterating through the db with a prefix", func() {
+			Context("when trying get the key with an invalid index", func() {
+				It("should return an ErrIndexOutOfRange error ", func() {
+					levelDB := New(".leveldb", codec)
+					defer levelDB.Close()
 
-			iteration := func(value []byte) bool {
-				ldb := New(leveldb)
-				return ldb.Insert("", value) == db.ErrEmptyKey
-			}
+					iteration := func(name string, values []testutil.TestStruct) bool {
+						// Inserting some data into the db
+						for i, value := range values {
+							Expect(levelDB.Insert(fmt.Sprintf("%v%d", name, i), value)).Should(Succeed())
+						}
 
-			Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+						// Try to get key and value without calling next.
+						iter := levelDB.Iterator(name)
+						var val testutil.TestStruct
+						_, err := iter.Key()
+						Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+						Expect(iter.Value(&val)).Should(Equal(db.ErrIndexOutOfRange))
+
+						for iter.Next() {
+						}
+
+						// Try to get key and value when next returns false.
+						_, err = iter.Key()
+						Expect(err).Should(Equal(db.ErrIndexOutOfRange))
+						Expect(iter.Value(&val)).Should(Equal(db.ErrIndexOutOfRange))
+
+						for i := range values {
+							Expect(levelDB.Delete(fmt.Sprintf("%d", i))).Should(Succeed())
+						}
+
+						return true
+					}
+
+					Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+				})
+			})
+		})
+
+		Context("when trying to create more than one db using the same path", func() {
+			It("should panic", func() {
+				levelDB := New(".leveldb", codec)
+				defer levelDB.Close()
+
+				Expect(func() {
+					New(".leveldb", codec)
+				}).Should(Panic())
+			})
+		})
+	}
+
+	Context("when initializing the db with a nil codec", func() {
+		It("should panic", func() {
+			Expect(func() {
+				New("dir", nil)
+			}).Should(Panic())
 		})
 	})
 })

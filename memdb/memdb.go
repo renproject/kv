@@ -1,94 +1,131 @@
 package memdb
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/renproject/kv/db"
 )
 
-// memdb is a in-memory implementation of the `db.Iterable`.
+// memdb is a in-memory implementation of the `db.DB`.
 type memdb struct {
-	mu   *sync.RWMutex
-	data map[string][]byte
+	prefixMu *sync.Mutex
+	prefixes map[string]string
+
+	dataMu *sync.RWMutex
+	data   map[string][]byte
+	codec  db.Codec
 }
 
 // New returns a new memdb.
-func New() db.Iterable {
+func New(codec db.Codec) db.DB {
+	if codec == nil {
+		panic("codec cannot be nil")
+	}
 	return &memdb{
-		mu:   new(sync.RWMutex),
-		data: map[string][]byte{},
+		prefixMu: new(sync.Mutex),
+		prefixes: map[string]string{},
+		dataMu:   new(sync.RWMutex),
+		data:     map[string][]byte{},
+		codec:    codec,
 	}
 }
 
-// Insert implements the `db.Iterable` interface.
-func (memdb memdb) Insert(key string, value []byte) error {
+// Close implements the `db.DB` interface.
+func (memdb *memdb) Close() error {
+	return nil
+}
+
+// Insert implements the `db.DB` interface.
+func (memdb *memdb) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
 
-	memdb.mu.Lock()
-	defer memdb.mu.Unlock()
+	memdb.dataMu.Lock()
+	defer memdb.dataMu.Unlock()
 
-	memdb.data[key] = value
+	data, err := memdb.codec.Encode(value)
+	if err != nil {
+		return err
+	}
+
+	memdb.data[key] = data
+
 	return nil
 }
 
-// Get implements the `db.Iterable` interface.
-func (memdb memdb) Get(key string) ([]byte, error) {
-	memdb.mu.RLock()
-	defer memdb.mu.RUnlock()
-
-	val, ok := memdb.data[key]
-	if !ok {
-		return nil, db.ErrNotFound
+// Get implements the `db.DB` interface.
+func (memdb *memdb) Get(key string, value interface{}) error {
+	if key == "" {
+		return db.ErrEmptyKey
 	}
-	return val, nil
+
+	memdb.dataMu.RLock()
+	defer memdb.dataMu.RUnlock()
+
+	data, ok := memdb.data[key]
+	if !ok {
+		return db.ErrKeyNotFound
+	}
+	return memdb.codec.Decode(data, value)
 }
 
-// Delete implements the `db.Iterable` interface.
-func (memdb memdb) Delete(key string) error {
-	memdb.mu.Lock()
-	defer memdb.mu.Unlock()
+// Delete implements the `db.DB` interface.
+func (memdb *memdb) Delete(key string) error {
+	if key == "" {
+		return db.ErrEmptyKey
+	}
+
+	memdb.dataMu.Lock()
+	defer memdb.dataMu.Unlock()
 
 	delete(memdb.data, key)
 	return nil
 }
 
-// Size implements the `db.Iterable` interface.
-func (memdb memdb) Size() (int, error) {
-	memdb.mu.RLock()
-	defer memdb.mu.RUnlock()
+// Size implements the `db.DB` interface.
+func (memdb *memdb) Size(prefix string) (int, error) {
+	memdb.dataMu.RLock()
+	defer memdb.dataMu.RUnlock()
 
-	return len(memdb.data), nil
+	counter := 0
+	for key := range memdb.data {
+		if strings.HasPrefix(key, prefix) {
+			counter++
+		}
+	}
+	return counter, nil
 }
 
-// Iterator implements the `db.Iterable` interface.
-func (memdb memdb) Iterator() db.Iterator {
-	memdb.mu.RLock()
-	defer memdb.mu.RUnlock()
+// Iterator implements the `db.DB` interface.
+func (memdb *memdb) Iterator(prefix string) db.Iterator {
+	memdb.dataMu.RLock()
+	defer memdb.dataMu.RUnlock()
 
-	return newIterator(memdb.data)
+	iter := &iterator{
+		index:  -1,
+		codec:  memdb.codec,
+		keys:   make([]string, 0, len(memdb.data)),
+		values: make([][]byte, 0, len(memdb.data)),
+	}
+	for key, value := range memdb.data {
+		if strings.HasPrefix(key, prefix) {
+			iter.keys = append(iter.keys, strings.TrimPrefix(key, prefix))
+			iter.values = append(iter.values, value)
+		}
+	}
+
+	return iter
 }
 
+// iterator is a in-memory implementation of the `db.Iterator`.
 type iterator struct {
-	index  int
+	index int
+	codec db.Codec
+
 	keys   []string
 	values [][]byte
-}
-
-func newIterator(data map[string][]byte) db.Iterator {
-	keys := make([]string, 0, len(data))
-	values := make([][]byte, 0, len(data))
-	for key, value := range data {
-		keys = append(keys, key)
-		values = append(values, value)
-	}
-
-	return &iterator{
-		index:  -1,
-		keys:   keys,
-		values: values,
-	}
 }
 
 // Next implements the `db.Iterator` interface.
@@ -99,22 +136,18 @@ func (iter *iterator) Next() bool {
 
 // Key implements the `db.Iterator` interface.
 func (iter *iterator) Key() (string, error) {
-	if iter.index == -1 {
+	if iter.index == -1 || iter.index >= len(iter.keys) {
 		return "", db.ErrIndexOutOfRange
 	}
-	if iter.index >= len(iter.keys) {
-		return "", db.ErrIndexOutOfRange
-	}
+
 	return iter.keys[iter.index], nil
 }
 
 // Value implements the `db.Iterator` interface.
-func (iter *iterator) Value() ([]byte, error) {
-	if iter.index == -1 {
-		return nil, db.ErrIndexOutOfRange
+func (iter *iterator) Value(value interface{}) error {
+	if iter.index == -1 || iter.index >= len(iter.keys) {
+		return db.ErrIndexOutOfRange
 	}
-	if iter.index >= len(iter.keys) {
-		return nil, db.ErrIndexOutOfRange
-	}
-	return iter.values[iter.index], nil
+	data := iter.values[iter.index]
+	return iter.codec.Decode(data, value)
 }
