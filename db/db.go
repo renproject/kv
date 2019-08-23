@@ -10,7 +10,8 @@ var ErrKeyNotFound = errors.New("key not found")
 // ErrEmptyKey is returned when key is empty.
 var ErrEmptyKey = errors.New("key cannot be empty")
 
-// ErrIndexOutOfRange is returned when the iterator index is not in a valid range.
+// ErrIndexOutOfRange is returned when the iterator index is not in a valid
+// range.
 var ErrIndexOutOfRange = errors.New("iterator index out of range")
 
 // Codec can do encoding/decoding between arbitrary data object and bytes.
@@ -20,37 +21,37 @@ type Codec interface {
 	Encode(obj interface{}) ([]byte, error)
 
 	// Decode the bytes to its original data object and assign it to the given
-	// variable. Value underlying `value` must be a pointer to the correct
-	// type for object.
+	// variable. Value underlying `value` must be a pointer to the correct type
+	// for object.
 	Decode(data []byte, value interface{}) error
 }
 
-// DB is a key-value database which requires the key to be a string and the value
-// can be encoded/decoded by the codec. It allows user to maintain multiple tables
-// with the same underlying database driver.
+// DB is a key-value database which requires the key to be a string and the
+// value can be encoded/decoded by the codec. It allows user to maintain
+// multiple tables with the same underlying database driver.
 type DB interface {
 
-	// Close will close the DB.
+	// Close the DB and free all of its resources. The DB must not be used after
+	// being closed.
 	Close() error
 
-	// Insert the key-value pair into the table with given name. It will
-	// return `ErrEmptyKey` if the key is empty.
+	// Insert writes the key-value into the DB.
 	Insert(key string, value interface{}) error
 
-	// Get retrieves the value of given key from the specified table and unmarshals
-	// it to the given variable. Value underlying `value` must be a pointer to
-	// the correct type for object. It will return ErrTableNotFound if the table
-	// doesn't exist. It will return `ErrEmptyKey` if the key is empty. It will
-	// return `ErrKeyNotFound` if there's no value associated with the key.
+	// Get the value associated with the given key and write it to the value
+	// interface. The value interface must be a pointer. If the key cannot be
+	// found, then ErrKeyNotFound is returned.
 	Get(key string, value interface{}) error
 
-	// Delete the data entry with given key from the specified table.
+	// Delete the value with the given key from the DB.
 	Delete(key string) error
 
-	// Size returns the number of data entries in the given table.
+	// Size returns the number of key/value pairs in the DB where the key begins
+	// with the given prefix.
 	Size(prefix string) (int, error)
 
-	// Iterator returns a iterator of the table with given name.
+	// Iterator over the key/value pairs in the DB where the key begins with the
+	// given prefix.
 	Iterator(prefix string) Iterator
 }
 
@@ -62,11 +63,12 @@ type Iterator interface {
 	// return false.
 	Next() bool
 
-	// Key of the current key-value tuple. Calling Key() without calling
-	// Next() or when no next item in the iter may result in `ErrIndexOutOfRange`
+	// Key of the current key-value tuple. Calling Key() without calling Next()
+	// or when no next item in the iter may result in `ErrIndexOutOfRange`
 	Key() (string, error)
 
 	// Value of the current key-value tuple. Calling Value() without calling
-	// Next() or when no next item in the iter will result in `ErrIndexOutOfRange`
+	// Next() or when no next item in the iter will result in
+	// `ErrIndexOutOfRange`
 	Value(value interface{}) error
 }

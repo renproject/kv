@@ -1,6 +1,6 @@
-// Package kv defines a standard interface for key-value stores and key-value
-// iterators. It provides persistent implementations using BadgerDB. It provides
-// non-persistent implementations using a concurrent-safe in-memory map.
+// Package kv defines a standard interface for key-value storage and iteration.
+// It supports persistent storage using LevelDB and BadgerDB. It also supports
+// non-persistent storage using concurrent-safe in-memory maps.
 package kv
 
 import (
@@ -19,32 +19,27 @@ var (
 	// ErrKeyNotFound is returned when there is no value associated with a key.
 	ErrKeyNotFound = errors.New("key not found")
 
-	// ErrEmptyKey is returned when key is empty.
+	// ErrEmptyKey is returned when a key is the empty string.
 	ErrEmptyKey = errors.New("key cannot be empty")
 
-	// ErrIndexOutOfRange is returned when the iterator index is not in a valid range.
+	// ErrIndexOutOfRange is returned when the iterator index is less than zero,
+	// or, greater than or equal to the size of the iterator.
 	ErrIndexOutOfRange = errors.New("iterator index out of range")
-
-	// ErrTableAlreadyExists is returned when the table with given name is already exists in the db.
-	ErrTableAlreadyExists = errors.New("table already exists")
-
-	// ErrTableNotFound is returned when there is no table with given name.
-	ErrTableNotFound = errors.New("table not found")
 )
 
 type (
-	// Table is an abstraction over the DB that enforces a particular type of
-	// pattern in the key (i.e. same key prefix). It requires the key to be a
-	// non-empty string and the value can be encoded/decoded by the used Codec.
+	// A Table is an abstraction over the DB that partitions key/value pairs. The
+	// Table name must be unique compared to other Table names.
 	Table = db.Table
 
-	// DB is able to add new table and does operations on certain table by its name.
+	// A DB is a low-level interface for storing and iterating over key/value
+	// pairs.
 	DB = db.DB
 
-	// Codec can encode and decode between arbitrary data object and bytes.
+	// A Codec defines an encoding/decoding between values and bytes.
 	Codec = db.Codec
 
-	// Iterator is used to iterate through the data in the store.
+	// An Iterator is used to lazily iterate over key/value pairs.
 	Iterator = db.Iterator
 )
 
@@ -60,7 +55,6 @@ var (
 	GobCodec = codec.GobCodec
 )
 
-// Initializing DB and table
 var (
 	// NewMemDB returns a key-value database that is implemented in-memory. This
 	// implementation is fast, but does not store data on-disk. It is safe for
@@ -79,7 +73,6 @@ var (
 	NewTable = db.NewTable
 )
 
-// Table wrappers
 var (
 	// NewLRUTable wraps a given Table and creates a Table which has lru cache.
 	NewLRUTable = lru.NewLruTable
