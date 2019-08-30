@@ -4,8 +4,6 @@
 package kv
 
 import (
-	"errors"
-
 	"github.com/renproject/kv/badgerdb"
 	"github.com/renproject/kv/cache/lru"
 	"github.com/renproject/kv/cache/ttl"
@@ -17,14 +15,14 @@ import (
 
 var (
 	// ErrKeyNotFound is returned when there is no value associated with a key.
-	ErrKeyNotFound = errors.New("key not found")
+	ErrKeyNotFound = db.ErrKeyNotFound
 
 	// ErrEmptyKey is returned when a key is the empty string.
-	ErrEmptyKey = errors.New("key cannot be empty")
+	ErrEmptyKey = db.ErrEmptyKey
 
 	// ErrIndexOutOfRange is returned when the iterator index is less than zero,
 	// or, greater than or equal to the size of the iterator.
-	ErrIndexOutOfRange = errors.New("iterator index out of range")
+	ErrIndexOutOfRange = db.ErrIndexOutOfRange
 )
 
 type (
