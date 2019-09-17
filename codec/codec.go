@@ -2,9 +2,49 @@ package codec
 
 import (
 	"bytes"
+	"encoding"
 	"encoding/gob"
 	"encoding/json"
+	"fmt"
 )
+
+// BinaryCodec is a Binary implementation of the `db.Codec`.
+var BinaryCodec binaryCodec
+
+// binaryCodec is a Binary implementation of the `db.Codec`. It encodes and
+// decodes data using the Binary standard.
+type binaryCodec struct{}
+
+// Encode implements the `db.Codec`
+func (binaryCodec) Encode(obj interface{}) ([]byte, error) {
+	switch obj.(type) {
+	case encoding.BinaryMarshaler:
+		return obj.(encoding.BinaryMarshaler).MarshalBinary()
+	case []byte:
+		return obj.([]byte), nil
+	case *[]byte:
+		return *(obj.(*[]byte)), nil
+	default:
+		panic(fmt.Sprintf("unsupported type=%T in binary codec", obj))
+	}
+}
+
+// Decode implements the `db.Codec`
+func (binaryCodec) Decode(data []byte, value interface{}) error {
+	switch value.(type) {
+	case encoding.BinaryUnmarshaler:
+		return value.(encoding.BinaryUnmarshaler).UnmarshalBinary(data)
+	case *[]byte:
+		*(value.(*[]byte)) = data
+		return nil
+	default:
+		panic(fmt.Sprintf("unsupported type=%T in binary codec", value))
+	}
+}
+
+func (binaryCodec) String() string {
+	return "binary"
+}
 
 // JSONCodec is a JSON implementation of the `db.Codec`.
 var JSONCodec jsonCodec

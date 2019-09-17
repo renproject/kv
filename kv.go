@@ -43,6 +43,11 @@ type (
 
 // Codecs
 var (
+	// BinaryCodec is a binary codec that marshals and unmarshals values using
+	// the standard Golang Binary marshalers. For more information, see
+	// https://golang.org/pkg/encoding.
+	BinaryCodec = codec.BinaryCodec
+
 	// JSONCodec is a json codec that marshals and unmarshals values using the
 	// standard Golang JSON marshalers. For more information, see
 	// https://golang.org/pkg/encoding/json.
