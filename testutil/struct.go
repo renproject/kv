@@ -21,6 +21,7 @@ type TestStruct struct {
 	E map[string]float64
 }
 
+// MarshalBinary implements the `BinaryMarshaler` interface.
 func (s TestStruct) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	aBytes := []byte(s.A)
@@ -60,6 +61,7 @@ func (s TestStruct) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// UnmarshalBinary implements the `BinaryUnmarshaler` interface.
 func (s *TestStruct) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	var numBytes uint64

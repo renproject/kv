@@ -18,8 +18,10 @@ var (
 	PrunePointerKey = "prunePointer"
 )
 
+// Pointer stores where the data is up to.
 type Pointer int64
 
+// MarshalBinary implements the `BinaryMarshaler` interface.
 func (p Pointer) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	if err := binary.Write(buf, binary.LittleEndian, p); err != nil {
@@ -28,6 +30,7 @@ func (p Pointer) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// UnmarshalBinary implements the `BinaryUnmarshaler` interface.
 func (p *Pointer) UnmarshalBinary(data []byte) error {
 	buf := bytes.NewBuffer(data)
 	if err := binary.Read(buf, binary.LittleEndian, p); err != nil {
