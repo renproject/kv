@@ -33,7 +33,7 @@ var _ = Describe("in-memory LRU cache", func() {
 						}
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
-						table := New(ctx, database, name, 10*time.Second, 5*time.Second)
+						table := New(ctx, database, name, 5*time.Second)
 
 						val := testutil.TestStruct{D: []byte{}}
 						err := table.Get(key, &val)
@@ -62,7 +62,7 @@ var _ = Describe("in-memory LRU cache", func() {
 					iteration := func(name string, values []testutil.TestStruct) bool {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
-						table := New(ctx, database, name, 10*time.Second, 5*time.Second)
+						table := New(ctx, database, name, 5*time.Second)
 
 						// Insert all values and make a map for validation.
 						allValues := map[string]testutil.TestStruct{}
@@ -108,7 +108,7 @@ var _ = Describe("in-memory LRU cache", func() {
 					test := func(name string, value testutil.TestStruct) bool {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
-						table := New(ctx, database, name, 10*time.Second, 5*time.Second)
+						table := New(ctx, database, name, 5*time.Second)
 
 						Expect(table.Insert("", value)).Should(Equal(db.ErrEmptyKey))
 						Expect(table.Get("", value)).Should(Equal(db.ErrEmptyKey))
@@ -132,7 +132,7 @@ var _ = Describe("in-memory LRU cache", func() {
 						}
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
-						table := New(ctx, database, name, 200*time.Millisecond, 100*time.Millisecond)
+						table := New(ctx, database, name, 100*time.Millisecond)
 						newValue := testutil.TestStruct{D: []byte{}}
 						Expect(table.Get(key, &newValue)).Should(Equal(db.ErrKeyNotFound))
 						Expect(table.Insert(key, &value)).NotTo(HaveOccurred())
@@ -160,7 +160,7 @@ var _ = Describe("in-memory LRU cache", func() {
 
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
-						table := New(ctx, database, name, 200*time.Millisecond, 100*time.Millisecond)
+						table := New(ctx, database, name, 100*time.Millisecond)
 						newValue := testutil.TestStruct{D: []byte{}}
 						Expect(table.Get(key, &newValue)).Should(Equal(db.ErrKeyNotFound))
 						Expect(table.Insert(key, &value)).NotTo(HaveOccurred())

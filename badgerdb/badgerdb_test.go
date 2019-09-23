@@ -217,7 +217,7 @@ var _ = Describe("badger DB implementation of the db", func() {
 				defer badgerDB.Close()
 
 				test := func() bool {
-					err := badgerDB.Insert("", "")
+					err := badgerDB.Insert("", []byte{})
 					Expect(err).Should(Equal(db.ErrEmptyKey))
 
 					var val string
