@@ -12,6 +12,7 @@ import (
 var Codecs = []db.Codec{
 	codec.JSONCodec,
 	codec.GobCodec,
+	codec.BinaryCodec,
 }
 
 // DbInitalizer returns a list of initialize functions of different DB implementations.
