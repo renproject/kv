@@ -38,7 +38,6 @@ func (p *Pointer) UnmarshalBinary(data []byte) error {
 
 type inMemTTL struct {
 	nameHash      string
-	timeToLive    time.Duration
 	pruneInterval time.Duration
 	db            db.DB
 }
@@ -55,7 +54,7 @@ func (ttlTable *inMemTTL) Insert(key string, value interface{}) error {
 
 	// Insert the current timestamp for future pruning.
 	slot := ttlTable.slotNo(time.Now())
-	return ttlTable.db.Insert(ttlTable.keyWithSlotPrefix(key, slot), []byte(key))
+	return ttlTable.db.Insert(ttlTable.keyWithSlotPrefix(key, slot), []byte{})
 }
 
 // Get implements the db.Table interface.
@@ -89,37 +88,41 @@ func (ttlTable *inMemTTL) Iterator() db.Iterator {
 
 // New returns a new ttl wrapper over the given database.
 // The underlying database cannot have any database has a prefix of `ttl_`.
-func New(ctx context.Context, database db.DB, name string, timeToLive time.Duration, pruneInterval time.Duration) db.Table {
+func New(ctx context.Context, database db.DB, name string, pruneInterval time.Duration) db.Table {
 	hash := sha3.Sum256([]byte(name))
 	ttlDB := &inMemTTL{
 		nameHash:      string(hash[:]),
-		timeToLive:    timeToLive,
 		pruneInterval: pruneInterval,
 		db:            database,
 	}
 
-	// Start a background goroutine to prune the db from the prune pointer.
-	pointer, err := ttlDB.prunePointer()
+	// Initialize the prune pointer if not exist
+	_, err := ttlDB.prunePointer()
 	if err != nil {
-		panic(fmt.Sprintf("cannot read prune pointer, err = %v", err))
+		panic(fmt.Sprintf("cannot get prune pointer, err = %v", err))
 	}
 
 	// NOTE: WE NEED TO TAKE A EXTERNAL CONTEXT TELLING US WHEN TO STOP PRUNING
 	// OR WHEN THE DB IS CLOSING. THIS IS BECAUSE WE NEED TO CREATE AN ITERATOR
 	// WHEN PRUNING AND IT CAN CAUSE PANIC IF THE UNDERLYING DB IS CLOSED.
-	go ttlDB.runPruneOnInterval(ctx, pointer)
+	go ttlDB.runPruneOnInterval(ctx)
 	return ttlDB
 }
 
 // prune will periodically prune the underlying database and stores the prune pointer
 // in the db.
-func (ttlTable *inMemTTL) runPruneOnInterval(ctx context.Context, pointer Pointer) {
+func (ttlTable *inMemTTL) runPruneOnInterval(ctx context.Context) {
 	ticker := time.NewTicker(ttlTable.pruneInterval)
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			pointer, err := ttlTable.prunePointer()
+			if err != nil {
+				panic(fmt.Sprintf("cannot read prune pointer, err = %v", err))
+			}
+
 			// todo : how can we catch if the error is caused by the underlying db been closed.
 			if err := ttlTable.prune(pointer); err != nil {
 				log.Printf("prune failed, err = %v", err)
