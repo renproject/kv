@@ -1,4 +1,4 @@
-# KV
+# `📦 kv`
 
 [![GoDoc](https://godoc.org/github.com/renproject/kv?status.svg)](https://godoc.org/github.com/renproject/kv)
 [![CircleCI](https://circleci.com/gh/renproject/kv/tree/master.svg?style=shield)](https://circleci.com/gh/renproject/kv/tree/master)
