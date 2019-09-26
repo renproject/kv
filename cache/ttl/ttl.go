@@ -1,9 +1,7 @@
 package ttl
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"log"
 	"time"
@@ -17,27 +15,6 @@ var (
 	// query the current prune pointer. This will always stored
 	PrunePointerKey = "prunePointer"
 )
-
-// Pointer stores where the data is up to.
-type Pointer int64
-
-// MarshalBinary implements the `BinaryMarshaler` interface.
-func (p Pointer) MarshalBinary() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	if err := binary.Write(buf, binary.LittleEndian, p); err != nil {
-		return buf.Bytes(), fmt.Errorf("cannot write pointer: %v", err)
-	}
-	return buf.Bytes(), nil
-}
-
-// UnmarshalBinary implements the `BinaryUnmarshaler` interface.
-func (p *Pointer) UnmarshalBinary(data []byte) error {
-	buf := bytes.NewBuffer(data)
-	if err := binary.Read(buf, binary.LittleEndian, p); err != nil {
-		return fmt.Errorf("cannot read pointer: %v", err)
-	}
-	return nil
-}
 
 type inMemTTL struct {
 	nameHash      string
@@ -136,8 +113,8 @@ func (ttlTable *inMemTTL) runPruneOnInterval(ctx context.Context) {
 }
 
 // prune prune the table
-func (ttlTable *inMemTTL) prune(pointer Pointer) error {
-	newSlotToDelete := Pointer(ttlTable.slotNo(time.Now().Add(-ttlTable.pruneInterval)))
+func (ttlTable *inMemTTL) prune(pointer int64) error {
+	newSlotToDelete := ttlTable.slotNo(time.Now().Add(-ttlTable.pruneInterval))
 	for slot := pointer + 1; slot <= newSlotToDelete; slot++ {
 		slotTable := ttlTable.keyWithSlotPrefix("", int64(slot))
 		iter := ttlTable.db.Iterator(slotTable)
@@ -165,11 +142,11 @@ func (ttlTable *inMemTTL) slotNo(moment time.Time) int64 {
 
 // prunePointer returns the current prune pointer which all slots before or equals to
 // it have been pruned. It will initialize the pointer if the db is new.
-func (ttlTable *inMemTTL) prunePointer() (Pointer, error) {
-	var pointer Pointer
+func (ttlTable *inMemTTL) prunePointer() (int64, error) {
+	var pointer int64
 	err := ttlTable.db.Get(ttlTable.keyWithSlotPrefix(PrunePointerKey, 0), &pointer)
 	if err == db.ErrKeyNotFound {
-		slot := Pointer(ttlTable.slotNo(time.Now()))
+		slot := ttlTable.slotNo(time.Now())
 		return slot - 1, ttlTable.db.Insert(ttlTable.keyWithSlotPrefix(PrunePointerKey, 0), slot-1)
 	}
 	return pointer, err

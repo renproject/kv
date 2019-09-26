@@ -3,9 +3,9 @@ package codec
 import (
 	"bytes"
 	"encoding"
+	"encoding/binary"
 	"encoding/gob"
 	"encoding/json"
-	"fmt"
 )
 
 // BinaryCodec is a Binary implementation of the `db.Codec`.
@@ -20,12 +20,12 @@ func (binaryCodec) Encode(obj interface{}) ([]byte, error) {
 	switch obj.(type) {
 	case encoding.BinaryMarshaler:
 		return obj.(encoding.BinaryMarshaler).MarshalBinary()
-	case []byte:
-		return obj.([]byte), nil
-	case *[]byte:
-		return *(obj.(*[]byte)), nil
 	default:
-		panic(fmt.Sprintf("unsupported type=%T in binary codec", obj))
+		buf := new(bytes.Buffer)
+		if err := binary.Write(buf, binary.LittleEndian, obj); err != nil {
+			return buf.Bytes(), err
+		}
+		return buf.Bytes(), nil
 	}
 }
 
@@ -34,11 +34,9 @@ func (binaryCodec) Decode(data []byte, value interface{}) error {
 	switch value.(type) {
 	case encoding.BinaryUnmarshaler:
 		return value.(encoding.BinaryUnmarshaler).UnmarshalBinary(data)
-	case *[]byte:
-		*(value.(*[]byte)) = data
-		return nil
 	default:
-		panic(fmt.Sprintf("unsupported type=%T in binary codec", value))
+		buf := bytes.NewBuffer(data)
+		return binary.Read(buf, binary.LittleEndian, value)
 	}
 }
 
