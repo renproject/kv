@@ -69,6 +69,7 @@ var _ = Describe("badger DB implementation of the db", func() {
 					// Expect iterator gives us all the key-value pairs we insert.
 					iter := badgerDB.Iterator(name)
 					Expect(iter).ShouldNot(BeNil())
+					defer iter.Close()
 
 					for iter.Next() {
 						key, err := iter.Key()
@@ -89,127 +90,6 @@ var _ = Describe("badger DB implementation of the db", func() {
 				Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
 			})
 		})
-
-		// Context("when doing operations on multiple tables using the same DB", func() {
-		// 	It("should work properly when doing reading and writing", func() {
-		// 		badgerDB := New(".badgerdb", codec)
-		// 		defer badgerDB.Close()
-		//
-		// 		readAndWrite := func() bool {
-		// 			names := testutil.RandomNonDupStrings(20)
-		// 			testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
-		// 			errs := make([]error, len(names))
-		//
-		// 			// Should be able to concurrently read and write data of different tables.
-		// 			phi.ParForAll(names, func(i int) {
-		// 				entries := testEntries[i]
-		//
-		// 				errs[i] = func() error {
-		// 					// Inserting all data entries
-		// 					for j, entry := range entries {
-		// 						err := badgerDB.Insert(names[i], fmt.Sprintf("%v", j), entry)
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 					}
-		//
-		// 					// Check the size function returning the right size of the Table.
-		// 					size, err := badgerDB.Size(names[i])
-		// 					if err != nil {
-		// 						return err
-		//
-		// 					}
-		// 					if size != len(entries) {
-		// 						return fmt.Errorf("test failed, unexpected Table size, expect = %v, got = %v", len(entries), size)
-		// 					}
-		//
-		// 					// Retrieve all data entries
-		// 					for j, entry := range entries {
-		// 						storedEntry := testutil.TestStruct{D: []byte{}}
-		// 						err := badgerDB.Get(names[i], fmt.Sprintf("%v", j), &storedEntry)
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 						if !reflect.DeepEqual(storedEntry, entry) {
-		// 							return fmt.Errorf("fail to retrieve data from the Table %v", names[i])
-		// 						}
-		// 						Expect(badgerDB.Delete(names[i], fmt.Sprintf("%v", j))).Should(Succeed())
-		// 					}
-		// 					return nil
-		// 				}()
-		//
-		// 			})
-		// 			Expect(testutil.CheckErrors(errs)).Should(BeNil())
-		//
-		// 			return true
-		// 		}
-		//
-		// 		Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
-		// 	})
-		//
-		// 	It("should working properly when iterating each Table at the same time", func() {
-		// 		badgerDB := New(".badgerdb", codec)
-		// 		defer badgerDB.Close()
-		//
-		// 		iteration := func() bool {
-		// 			names := testutil.RandomNonDupStrings(20)
-		// 			testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
-		// 			errs := make([]error, len(names))
-		//
-		// 			// Should be able to concurrently iterating different tables.
-		// 			phi.ParForAll(names, func(i int) {
-		// 				entries := testEntries[i]
-		//
-		// 				errs[i] = func() error {
-		// 					// Inserting all data entries
-		// 					allValues := map[string]testutil.TestStruct{}
-		// 					for j, entry := range entries {
-		// 						key := fmt.Sprintf("%v", j)
-		// 						err := badgerDB.Insert(names[i], fmt.Sprintf("%v", j), entry)
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 						allValues[key] = entry
-		// 					}
-		//
-		// 					// Expect iterator gives us all the key-value pairs we inserted.
-		// 					iter := badgerDB.Iterator(names[i])
-		// 					for iter.Next() {
-		// 						key, err := iter.Key()
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 						value := testutil.TestStruct{D: []byte{}}
-		// 						err = iter.Value(&value)
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		//
-		// 						stored, ok := allValues[key]
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 						if !ok {
-		// 							return errors.New("test failed, iterator has new values inserted after the iterator been created ")
-		// 						}
-		// 						if !reflect.DeepEqual(value, stored) {
-		// 							return errors.New("test failed, stored value different are different")
-		// 						}
-		// 						delete(allValues, key)
-		// 						Expect(badgerDB.Delete(names[i], key)).Should(Succeed())
-		// 					}
-		// 					return nil
-		// 				}()
-		//
-		// 			})
-		// 			Expect(testutil.CheckErrors(errs)).Should(BeNil())
-		//
-		// 			return true
-		// 		}
-		//
-		// 		Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
-		// 	})
-		// })
 
 		Context("when operating with empty key", func() {
 			It("should return ErrEmptyKey error", func() {
@@ -246,6 +126,8 @@ var _ = Describe("badger DB implementation of the db", func() {
 						}
 
 						iter := badgerDB.Iterator(name)
+						defer iter.Close()
+
 						var val testutil.TestStruct
 						_, err := iter.Key()
 						Expect(err).Should(Equal(db.ErrIndexOutOfRange))

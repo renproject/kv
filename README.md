@@ -32,7 +32,7 @@ Usage
 
 ### Codec
 
-A `Codec` is encodes `interface{}` values into bytes, decode bytes into the `interface{}` values. Generally, when a specific type is not supported, a `Codec` will panic. Out of the box, KV supports:
+A `Codec` encodes `interface{}` values into bytes, decode bytes into the `interface{}` values. Generally, when a specific type is not supported, a `Codec` will panic. Out of the box, KV supports:
 
 - `JSONCodec` which encodes/decodes using the standard library [JSON](https://golang.org/pkg/encoding/json) marshaler, and
 - `GobCodec` which encodes/decodes using the standard library [Gob]https://golang.org/pkg/encoding/gob marshaler (you must explicitly register types outside of KV).

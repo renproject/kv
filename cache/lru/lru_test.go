@@ -78,6 +78,8 @@ var _ = Describe("lru cache table wrapper", func() {
 
 						// Expect iterator gives us all the key-value pairs we insert.
 						iter := table.Iterator()
+						defer iter.Close()
+
 						for iter.Next() {
 							key, err := iter.Key()
 							Expect(err).NotTo(HaveOccurred())

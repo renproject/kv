@@ -1,6 +1,7 @@
 package memdb_test
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"testing/quick"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/renproject/kv/db"
 	"github.com/renproject/kv/testutil"
+	"github.com/renproject/phi"
 )
 
 var _ = Describe("im-memory implementation of the db", func() {
@@ -70,6 +72,7 @@ var _ = Describe("im-memory implementation of the db", func() {
 					// Expect iterator gives us all the key-values pairs we insert.
 					iter := memdb.Iterator(name)
 					Expect(iter).ShouldNot(BeNil())
+					defer iter.Close()
 
 					for iter.Next() {
 						key, err := iter.Key()
@@ -92,120 +95,48 @@ var _ = Describe("im-memory implementation of the db", func() {
 			})
 		})
 
-		// Context("when doing operations on multiple data using the same DB", func() {
-		// 	It("should work properly when doing reading and writing", func() {
-		// 		readAndWrite := func() bool {
-		// 			memdb := New(codec)
-		// 			defer memdb.Close()
-		//
-		// 			names := testutil.RandomNonDupStrings(20)
-		// 			testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
-		// 			errs := make([]error, len(names))
-		//
-		// 			// Should be able to concurrently read and write data of different data.
-		// 			phi.ParForAll(names, func(i int) {
-		// 				entries := testEntries[i]
-		//
-		// 				errs[i] = func() error {
-		// 					// Inserting all data entries
-		// 					for j, entry := range entries {
-		// 						err := memdb.Insert(names[i], fmt.Sprintf("%v", j), entry)
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 					}
-		//
-		// 					// Check the size function returning the right size of the table.
-		// 					size, err := memdb.Size(names[i])
-		// 					if err != nil {
-		// 						return err
-		//
-		// 					}
-		// 					if size != len(entries) {
-		// 						return fmt.Errorf("test failed, unexpected table size, expect = %v, got = %v", len(entries), size)
-		// 					}
-		// 					// Retrieve all data entries
-		// 					for j, entry := range entries {
-		// 						storedEntry := testutil.TestStruct{D: []byte{}}
-		// 						err := memdb.Get(names[i], fmt.Sprintf("%v", j), &storedEntry)
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 						if !reflect.DeepEqual(storedEntry, entry) {
-		// 							return fmt.Errorf("fail to retrieve data from the table %v", names[i])
-		// 						}
-		// 					}
-		// 					return nil
-		// 				}()
-		// 			})
-		// 			Expect(testutil.CheckErrors(errs)).Should(BeNil())
-		//
-		// 			return true
-		// 		}
-		// 		Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
-		// 	})
-		//
-		// 	It("should working properly when iterating each table at the same time", func() {
-		// 		iteration := func() bool {
-		// 			memdb := New(codec)
-		// 			defer memdb.Close()
-		//
-		// 			names := testutil.RandomNonDupStrings(20)
-		// 			testEntries := testutil.RandomTestStructGroups(len(names), rand.Intn(20))
-		// 			errs := make([]error, len(names))
-		//
-		// 			// Should be able to concurrently iterating different data.
-		// 			phi.ParForAll(names, func(i int) {
-		// 				entries := testEntries[i]
-		//
-		// 				errs[i] = func() error {
-		// 					// Inserting all data entries
-		// 					allValues := map[string]testutil.TestStruct{}
-		// 					for j, entry := range entries {
-		// 						key := fmt.Sprintf("%v", j)
-		// 						err := memdb.Insert(names[i], fmt.Sprintf("%v", j), entry)
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 						allValues[key] = entry
-		// 					}
-		//
-		// 					// Expect iterator gives us all the key-values pairs we inserted.
-		// 					iter := memdb.Iterator(names[i])
-		// 					for iter.Next() {
-		// 						key, err := iter.Key()
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 						value := testutil.TestStruct{D: []byte{}}
-		// 						err = iter.Value(&value)
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		//
-		// 						stored, ok := allValues[key]
-		// 						if err != nil {
-		// 							return err
-		// 						}
-		// 						if !ok {
-		// 							return errors.New("test failed, iterator has new values inserted after the iterator been created ")
-		// 						}
-		// 						if !reflect.DeepEqual(value, stored) {
-		// 							return errors.New("test failed, stored values different are different")
-		// 						}
-		// 						delete(allValues, key)
-		// 					}
-		// 					return nil
-		// 				}()
-		// 			})
-		// 			Expect(testutil.CheckErrors(errs)).Should(BeNil())
-		//
-		// 			return true
-		// 		}
-		//
-		// 		Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
-		// 	})
-		// })
+		Context("when doing multiple operations on the DB concurrently", func() {
+			It("should work properly when doing reading and writing", func() {
+				readAndWrite := func(values []testutil.TestStruct) bool {
+					memdb := New(codec)
+					defer memdb.Close()
+
+					// Should be able to concurrently read and write data of different data.
+					errs := make([]error, len(values))
+					phi.ParForAll(len(values), func(i int) {
+						errs[i] = func() error {
+							value := values[i]
+							key := fmt.Sprintf("key_%v", value.A)
+
+							// Should be able to read the values after inserting.
+							if err := memdb.Insert(key, value); err != nil {
+								return err
+							}
+
+							val := testutil.TestStruct{D: []byte{}}
+							if err := memdb.Get(key, &val); err != nil {
+								return err
+							}
+							if !reflect.DeepEqual(val, value) {
+								return errors.New("stored value are different")
+							}
+
+							// Expect no values exists after deleting the values.
+							if err := memdb.Delete(key); err != nil {
+								return err
+							}
+							if err := memdb.Get(key, &val); err != db.ErrKeyNotFound {
+								return errors.New("fail to delete the data")
+							}
+							return nil
+						}()
+					})
+					return testutil.CheckErrors(errs) == nil
+				}
+
+				Expect(quick.Check(readAndWrite, &quick.Config{MaxCount: 1})).NotTo(HaveOccurred())
+			})
+		})
 
 		Context("when operating with empty key", func() {
 			It("should return ErrEmptyKey error", func() {
@@ -242,6 +173,8 @@ var _ = Describe("im-memory implementation of the db", func() {
 						}
 
 						iter := memdb.Iterator(name)
+						defer iter.Close()
+
 						var val testutil.TestStruct
 						_, err := iter.Key()
 						Expect(err).Should(Equal(db.ErrIndexOutOfRange))
