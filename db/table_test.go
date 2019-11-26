@@ -112,6 +112,7 @@ var _ = Describe("table", func() {
 
 							// Expect iterator gives us all the key-value pairs we inserted.
 							iter := table.Iterator()
+							defer iter.Close()
 							for iter.Next() {
 								key, err := iter.Key()
 								if err != nil {

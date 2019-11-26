@@ -56,6 +56,7 @@ var _ = Describe("TTL cache", func() {
 		// Expect iterator gives us all the key-value pairs we insert.
 		iter := table.Iterator()
 		Expect(iter).ShouldNot(BeNil())
+		defer iter.Close()
 
 		for iter.Next() {
 			key, err := iter.Key()
@@ -72,6 +73,17 @@ var _ = Describe("TTL cache", func() {
 		return len(allValues) == 0
 	}
 
+	cleanTable := func(table db.Table) {
+		iter := table.Iterator()
+		defer iter.Close()
+
+		for iter.Next() {
+			key, err := iter.Key()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(table.Delete(key)).NotTo(HaveOccurred())
+		}
+	}
+
 	for i := range testutil.Codecs {
 		for j := range testutil.DbInitalizer {
 			codec := testutil.Codecs[i]
@@ -86,6 +98,7 @@ var _ = Describe("TTL cache", func() {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
 						table := New(ctx, database, name, 5*time.Second)
+						defer cleanTable(table)
 						return readAndWrite(table, key, value)
 					}
 
@@ -100,6 +113,7 @@ var _ = Describe("TTL cache", func() {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
 						table := New(ctx, database, name, 5*time.Second)
+						defer cleanTable(table)
 						return iteration(table, values)
 					}
 
