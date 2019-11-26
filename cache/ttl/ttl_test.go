@@ -130,7 +130,7 @@ var _ = Describe("TTL cache", func() {
 			})
 
 			Context("when creating multiple ttl table with same underlying db", func() {
-				FIt("should not affect each other", func() {
+				It("should not affect each other", func() {
 					database := initializer(codec)
 					defer database.Close()
 
@@ -152,7 +152,7 @@ var _ = Describe("TTL cache", func() {
 						return true
 					}
 
-					Expect(quick.Check(test, &quick.Config{MaxCount: 1000})).NotTo(HaveOccurred())
+					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 				})
 			})
 
