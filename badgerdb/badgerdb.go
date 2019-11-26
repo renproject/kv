@@ -178,6 +178,12 @@ func (iter *iterator) Value(value interface{}) error {
 	return iter.codec.Decode(data, value)
 }
 
+// Close implements the `db.Iterator` interface.
+func (iter *iterator) Close() {
+	iter.iter.Close()
+	iter.tx.Discard()
+}
+
 // convertErr will convert badgerDB-specific error to kv error.
 func convertErr(err error) error {
 	switch err {

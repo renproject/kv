@@ -112,27 +112,36 @@ func (ttlTable *table) runPruneOnInterval(ctx context.Context) {
 	}
 }
 
-// prune prune the table
 func (ttlTable *table) prune(pointer int64) error {
 	newSlotToDelete := ttlTable.slotNo(time.Now().Add(-ttlTable.pruneInterval))
 	for slot := pointer + 1; slot <= newSlotToDelete; slot++ {
-		slotTable := ttlTable.keyWithSlotPrefix("", int64(slot))
-		iter := ttlTable.db.Iterator(slotTable)
-		for iter.Next() {
-			key, err := iter.Key()
-			if err != nil {
-				return err
-			}
-			if err := ttlTable.db.Delete(ttlTable.keyWithPrefix(key)); err != nil {
-				return err
-			}
-			if err := ttlTable.db.Delete(ttlTable.keyWithSlotPrefix(key, int64(slot))); err != nil {
-				return err
-			}
+		if err := ttlTable.pruneTimeSlot(slot); err != nil {
+			return err
 		}
 	}
 	pointer = newSlotToDelete
 	return ttlTable.db.Insert(ttlTable.keyWithSlotPrefix(PrunePointerKey, 0), newSlotToDelete)
+}
+
+func (ttlTable *table) pruneTimeSlot(slot int64) error {
+	slotTable := ttlTable.keyWithSlotPrefix("", slot)
+	iter := ttlTable.db.Iterator(slotTable)
+	defer iter.Close()
+
+	for iter.Next() {
+		key, err := iter.Key()
+		if err != nil {
+			return err
+		}
+		if err := ttlTable.db.Delete(ttlTable.keyWithPrefix(key)); err != nil {
+			return err
+		}
+		if err := ttlTable.db.Delete(ttlTable.keyWithSlotPrefix(key, slot)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // slotNo returns the slot number in which the given unix timestamp is belonging to.

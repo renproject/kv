@@ -71,4 +71,9 @@ type Iterator interface {
 	// Next() or when no next item in the iter will result in
 	// `ErrIndexOutOfRange`
 	Value(value interface{}) error
+
+	// Close must be called after finishing the iteration to release associated
+	// resources. Close should always success and can be called multiple times
+	// without causing error.
+	Close()
 }

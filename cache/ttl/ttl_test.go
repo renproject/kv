@@ -68,7 +68,6 @@ var _ = Describe("TTL cache", func() {
 			Expect(ok).Should(BeTrue())
 			Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
 			delete(allValues, key)
-			Expect(table.Delete(key)).Should(Succeed())
 		}
 		return len(allValues) == 0
 	}

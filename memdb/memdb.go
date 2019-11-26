@@ -151,3 +151,6 @@ func (iter *iterator) Value(value interface{}) error {
 	data := iter.values[iter.index]
 	return iter.codec.Decode(data, value)
 }
+
+// Close implements the `db.Iterator` interface.
+func (iter *iterator) Close() {}

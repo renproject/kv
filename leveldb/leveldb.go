@@ -130,6 +130,11 @@ func (iter *iter) Value(value interface{}) error {
 	return iter.codec.Decode(val, value)
 }
 
+// Close implements the `db.Iterator` interface.
+func (iter *iter) Close() {
+	iter.iter.Release()
+}
+
 // convertErr will convert levelDB-specific error to kv error.
 func convertErr(err error) error {
 	switch err {
