@@ -16,15 +16,15 @@ var (
 	PrunePointerKey = "prunePointer"
 )
 
-type inMemTTL struct {
+type table struct {
+	db            db.DB
 	nameHash      string
 	pruneInterval time.Duration
-	db            db.DB
 }
 
 // Insert the key into the table and also record timestamp associated the key
 // in a corresponding table in the db.
-func (ttlTable *inMemTTL) Insert(key string, value interface{}) error {
+func (ttlTable *table) Insert(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
@@ -38,7 +38,7 @@ func (ttlTable *inMemTTL) Insert(key string, value interface{}) error {
 }
 
 // Get implements the db.Table interface.
-func (ttlTable *inMemTTL) Get(key string, value interface{}) error {
+func (ttlTable *table) Get(key string, value interface{}) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
@@ -48,7 +48,7 @@ func (ttlTable *inMemTTL) Get(key string, value interface{}) error {
 
 // Delete only deletes the data, but not the timestamp which will be handled
 // by the prune function.
-func (ttlTable *inMemTTL) Delete(key string) error {
+func (ttlTable *table) Delete(key string) error {
 	if key == "" {
 		return db.ErrEmptyKey
 	}
@@ -57,12 +57,12 @@ func (ttlTable *inMemTTL) Delete(key string) error {
 }
 
 // Size implements the db.Table interface.
-func (ttlTable *inMemTTL) Size() (int, error) {
+func (ttlTable *table) Size() (int, error) {
 	return ttlTable.db.Size(ttlTable.keyWithPrefix(""))
 }
 
 // Iterator implements the db.Table interface.
-func (ttlTable *inMemTTL) Iterator() db.Iterator {
+func (ttlTable *table) Iterator() db.Iterator {
 	return ttlTable.db.Iterator(ttlTable.keyWithPrefix(""))
 }
 
@@ -70,10 +70,10 @@ func (ttlTable *inMemTTL) Iterator() db.Iterator {
 // The underlying database cannot have any database has a prefix of `ttl_`.
 func New(ctx context.Context, database db.DB, name string, pruneInterval time.Duration) db.Table {
 	hash := sha3.Sum256([]byte(name))
-	ttlDB := &inMemTTL{
+	ttlDB := &table{
+		db:            database,
 		nameHash:      string(hash[:]),
 		pruneInterval: pruneInterval,
-		db:            database,
 	}
 
 	// Initialize the prune pointer if not exist
@@ -91,7 +91,7 @@ func New(ctx context.Context, database db.DB, name string, pruneInterval time.Du
 
 // prune will periodically prune the underlying database and stores the prune pointer
 // in the db.
-func (ttlTable *inMemTTL) runPruneOnInterval(ctx context.Context) {
+func (ttlTable *table) runPruneOnInterval(ctx context.Context) {
 	ticker := time.NewTicker(ttlTable.pruneInterval)
 	for {
 		select {
@@ -113,7 +113,7 @@ func (ttlTable *inMemTTL) runPruneOnInterval(ctx context.Context) {
 }
 
 // prune prune the table
-func (ttlTable *inMemTTL) prune(pointer int64) error {
+func (ttlTable *table) prune(pointer int64) error {
 	newSlotToDelete := ttlTable.slotNo(time.Now().Add(-ttlTable.pruneInterval))
 	for slot := pointer + 1; slot <= newSlotToDelete; slot++ {
 		slotTable := ttlTable.keyWithSlotPrefix("", int64(slot))
@@ -136,13 +136,13 @@ func (ttlTable *inMemTTL) prune(pointer int64) error {
 }
 
 // slotNo returns the slot number in which the given unix timestamp is belonging to.
-func (ttlTable *inMemTTL) slotNo(moment time.Time) int64 {
+func (ttlTable *table) slotNo(moment time.Time) int64 {
 	return moment.UnixNano() / ttlTable.pruneInterval.Nanoseconds()
 }
 
 // prunePointer returns the current prune pointer which all slots before or equals to
 // it have been pruned. It will initialize the pointer if the db is new.
-func (ttlTable *inMemTTL) prunePointer() (int64, error) {
+func (ttlTable *table) prunePointer() (int64, error) {
 	var pointer int64
 	err := ttlTable.db.Get(ttlTable.keyWithSlotPrefix(PrunePointerKey, 0), &pointer)
 	if err == db.ErrKeyNotFound {
@@ -152,10 +152,11 @@ func (ttlTable *inMemTTL) prunePointer() (int64, error) {
 	return pointer, err
 }
 
-func (ttlTable *inMemTTL) keyWithSlotPrefix(key string, i int64) string {
-	return fmt.Sprintf("%v_slot%d_%v", ttlTable.nameHash, i, key)
+func (ttlTable *table) keyWithSlotPrefix(key string, i int64) string {
+	// Use "-" instead of "_" to distinguish between the actual data and time-slot data.
+	return fmt.Sprintf("%v-slot%d_%v", ttlTable.nameHash, i, key)
 }
 
-func (ttlTable *inMemTTL) keyWithPrefix(name string) string {
-	return fmt.Sprintf("ttlDataTable_%v", name)
+func (ttlTable *table) keyWithPrefix(name string) string {
+	return fmt.Sprintf("%v_%v", ttlTable.nameHash, name)
 }

@@ -15,7 +15,64 @@ import (
 	"github.com/renproject/kv/testutil"
 )
 
-var _ = Describe("in-memory LRU cache", func() {
+var _ = Describe("TTL cache", func() {
+
+	readAndWrite := func(table db.Table, key string, value testutil.TestStruct) bool {
+		// Make sure the key is not nil
+		if key == "" {
+			return true
+		}
+
+		val := testutil.TestStruct{D: []byte{}}
+		err := table.Get(key, &val)
+		Expect(err).Should(Equal(db.ErrKeyNotFound))
+
+		// Should be able to read the value after inserting.
+		Expect(table.Insert(key, value)).NotTo(HaveOccurred())
+		err = table.Get(key, &val)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reflect.DeepEqual(val, value)).Should(BeTrue())
+
+		// Expect no value exists after deleting the value.
+		Expect(table.Delete(key)).NotTo(HaveOccurred())
+		err = table.Get(key, &val)
+		Expect(err).Should(Equal(db.ErrKeyNotFound))
+		return true
+	}
+
+	iteration := func(table db.Table, values []testutil.TestStruct) bool {
+		// Insert all values and make a map for validation.
+		allValues := map[string]testutil.TestStruct{}
+		for i, value := range values {
+			key := fmt.Sprintf("%v", i)
+			Expect(table.Insert(key, value)).NotTo(HaveOccurred())
+			allValues[key] = value
+		}
+
+		size, err := table.Size()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(size).Should(Equal(len(values)))
+
+		// Expect iterator gives us all the key-value pairs we insert.
+		iter := table.Iterator()
+		Expect(iter).ShouldNot(BeNil())
+
+		for iter.Next() {
+			key, err := iter.Key()
+			Expect(err).NotTo(HaveOccurred())
+			value := testutil.TestStruct{D: []byte{}}
+			err = iter.Value(&value)
+			Expect(err).NotTo(HaveOccurred())
+
+			stored, ok := allValues[key]
+			Expect(ok).Should(BeTrue())
+			Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
+			delete(allValues, key)
+			Expect(table.Delete(key)).Should(Succeed())
+		}
+		return len(allValues) == 0
+	}
+
 	for i := range testutil.Codecs {
 		for j := range testutil.DbInitalizer {
 			codec := testutil.Codecs[i]
@@ -26,77 +83,28 @@ var _ = Describe("in-memory LRU cache", func() {
 					database := initializer(codec)
 					defer database.Close()
 
-					readAndWrite := func(name string, key string, value testutil.TestStruct) bool {
-						// Make sure the key is not nil
-						if key == "" {
-							return true
-						}
+					test := func(name string, key string, value testutil.TestStruct) bool {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
 						table := New(ctx, database, name, 5*time.Second)
-
-						val := testutil.TestStruct{D: []byte{}}
-						err := table.Get(key, &val)
-						Expect(err).Should(Equal(db.ErrKeyNotFound))
-
-						// Should be able to read the value after inserting.
-						Expect(table.Insert(key, value)).NotTo(HaveOccurred())
-						err = table.Get(key, &val)
-						Expect(err).NotTo(HaveOccurred())
-						Expect(reflect.DeepEqual(val, value)).Should(BeTrue())
-
-						// Expect no value exists after deleting the value.
-						Expect(table.Delete(key)).NotTo(HaveOccurred())
-						err = table.Get(key, &val)
-						Expect(err).Should(Equal(db.ErrKeyNotFound))
-						return true
+						return readAndWrite(table, key, value)
 					}
 
-					Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 				})
 
 				It("should be able to iterate through the db using the iterator", func() {
 					database := initializer(codec)
 					defer database.Close()
 
-					iteration := func(name string, values []testutil.TestStruct) bool {
+					test := func(name string, key string, values []testutil.TestStruct) bool {
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
 						table := New(ctx, database, name, 5*time.Second)
-
-						// Insert all values and make a map for validation.
-						allValues := map[string]testutil.TestStruct{}
-						for i, value := range values {
-							key := fmt.Sprintf("%v", i)
-							Expect(table.Insert(key, value)).NotTo(HaveOccurred())
-							allValues[key] = value
-						}
-
-						size, err := table.Size()
-						Expect(err).NotTo(HaveOccurred())
-						Expect(size).Should(Equal(len(values)))
-
-						// Expect iterator gives us all the key-value pairs we insert.
-						iter := table.Iterator()
-						Expect(iter).ShouldNot(BeNil())
-
-						for iter.Next() {
-							key, err := iter.Key()
-							Expect(err).NotTo(HaveOccurred())
-							value := testutil.TestStruct{D: []byte{}}
-							err = iter.Value(&value)
-							Expect(err).NotTo(HaveOccurred())
-
-							stored, ok := allValues[key]
-							Expect(ok).Should(BeTrue())
-							Expect(reflect.DeepEqual(value, stored)).Should(BeTrue())
-							delete(allValues, key)
-							Expect(table.Delete(key)).Should(Succeed())
-						}
-						return len(allValues) == 0
+						return iteration(table, values)
 					}
 
-					Expect(quick.Check(iteration, nil)).NotTo(HaveOccurred())
+					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
 				})
 			})
 
@@ -118,6 +126,33 @@ var _ = Describe("in-memory LRU cache", func() {
 					}
 
 					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+				})
+			})
+
+			Context("when creating multiple ttl table with same underlying db", func() {
+				FIt("should not affect each other", func() {
+					database := initializer(codec)
+					defer database.Close()
+
+					tableNames := map[string]struct{}{}
+
+					test := func(name string, key string, value testutil.TestStruct, values []testutil.TestStruct) bool {
+						// Need to make sure all tables have different names
+						if _, ok := tableNames[name]; ok {
+							return true
+						}
+						tableNames[name] = struct{}{}
+
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+						table := New(ctx, database, name, 5*time.Second)
+						Expect(readAndWrite(table, key, value)).Should(BeTrue())
+						Expect(iteration(table, values)).Should(BeTrue())
+
+						return true
+					}
+
+					Expect(quick.Check(test, &quick.Config{MaxCount: 1000})).NotTo(HaveOccurred())
 				})
 			})
 

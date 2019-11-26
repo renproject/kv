@@ -75,11 +75,12 @@ func (ldb *levelDB) Delete(key string) error {
 // Size implements the `db.DB` interface.
 func (ldb *levelDB) Size(prefix string) (int, error) {
 	iter := ldb.db.NewIterator(util.BytesPrefix([]byte(prefix)), nil)
+	defer iter.Release()
+
 	counter := 0
 	for iter.Next() {
 		counter++
 	}
-	iter.Release()
 	return counter, nil
 }
 
