@@ -13,6 +13,11 @@ import (
 
 var _ = Describe("codec", func() {
 	Context("binary codec", func() {
+		It("should return the correct string", func() {
+			codec := BinaryCodec
+			Expect(codec.String()).To(Equal("binary"))
+		})
+
 		It("should be able to correctly encode/decode a custom struct", func() {
 			test := func(obj TestStruct) bool {
 				codec := BinaryCodec
@@ -60,6 +65,11 @@ var _ = Describe("codec", func() {
 	})
 
 	Context("JSON codec", func() {
+		It("should return the correct string", func() {
+			codec := JSONCodec
+			Expect(codec.String()).To(Equal("json"))
+		})
+
 		It("should be able to correctly encode/decode a custom struct", func() {
 			test := func(obj TestStruct) bool {
 				codec := JSONCodec
@@ -77,6 +87,11 @@ var _ = Describe("codec", func() {
 	})
 
 	Context("Gob codec", func() {
+		It("should return the correct string", func() {
+			codec := GobCodec
+			Expect(codec.String()).To(Equal("gob"))
+		})
+
 		It("should be able to correctly encode/decode a custom struct", func() {
 			test := func(obj TestStruct) bool {
 				codec := GobCodec
