@@ -27,6 +27,7 @@ jobs:
             golint ./...
             CI=true /go/bin/ginkgo -v --race --cover --coverprofile coverprofile.out ./...
             /go/bin/covermerge              \
+              codec/coverprofile.out        \
               cache/lru/coverprofile.out    \
               cache/ttl/coverprofile.out    \
               leveldb/coverprofile.out      \
