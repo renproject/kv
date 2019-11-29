@@ -22,18 +22,20 @@ func (binaryCodec) Encode(obj interface{}) ([]byte, error) {
 		return obj.(encoding.BinaryMarshaler).MarshalBinary()
 	default:
 		buf := new(bytes.Buffer)
-		if err := binary.Write(buf, binary.LittleEndian, obj); err != nil {
-			return buf.Bytes(), err
-		}
-		return buf.Bytes(), nil
+		err := binary.Write(buf, binary.LittleEndian, obj)
+		return buf.Bytes(), err
 	}
 }
 
 // Decode implements the `db.Codec`
 func (binaryCodec) Decode(data []byte, value interface{}) error {
-	switch value.(type) {
+	switch v := value.(type) {
 	case encoding.BinaryUnmarshaler:
 		return value.(encoding.BinaryUnmarshaler).UnmarshalBinary(data)
+	case *[]byte:
+		*v = make([]byte, len(data))
+		copy(*v, data)
+		return nil
 	default:
 		buf := bytes.NewBuffer(data)
 		return binary.Read(buf, binary.LittleEndian, value)
@@ -75,11 +77,8 @@ type gobCodec struct{}
 // Encode implements the `db.Codec`
 func (gobCodec) Encode(obj interface{}) ([]byte, error) {
 	buf := new(bytes.Buffer)
-	if err := gob.NewEncoder(buf).Encode(obj); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+	err := gob.NewEncoder(buf).Encode(obj)
+	return buf.Bytes(), err
 }
 
 // Decode implements the `db.Codec`
