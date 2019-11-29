@@ -31,9 +31,13 @@ func (binaryCodec) Encode(obj interface{}) ([]byte, error) {
 
 // Decode implements the `db.Codec`
 func (binaryCodec) Decode(data []byte, value interface{}) error {
-	switch value.(type) {
+	switch v := value.(type) {
 	case encoding.BinaryUnmarshaler:
 		return value.(encoding.BinaryUnmarshaler).UnmarshalBinary(data)
+	case *[]byte:
+		*v = make([]byte, len(data))
+		copy(*v, data)
+		return nil
 	default:
 		buf := bytes.NewBuffer(data)
 		return binary.Read(buf, binary.LittleEndian, value)
