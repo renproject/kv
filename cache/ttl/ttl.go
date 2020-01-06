@@ -32,10 +32,13 @@ func (ttlTable *table) Insert(key string, value interface{}) error {
 		return err
 	}
 
-	// Delete it from the previous slot in case it exists to prevent it from
-	// being pruned in advance.
+	// Delete it from the previous two slots in case it exists to prevent it
+	// from being pruned in advance.
 	slot := ttlTable.slotNo(time.Now())
 	if err := ttlTable.db.Delete(ttlTable.keyWithSlotPrefix(key, slot-1)); err != nil {
+		return err
+	}
+	if err := ttlTable.db.Delete(ttlTable.keyWithSlotPrefix(key, slot-2)); err != nil {
 		return err
 	}
 
