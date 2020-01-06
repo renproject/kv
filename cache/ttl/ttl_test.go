@@ -194,7 +194,7 @@ var _ = Describe("TTL cache", func() {
 						return true
 					}
 
-					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+					Expect(quick.Check(test, &quick.Config{MaxCount: 20})).NotTo(HaveOccurred())
 				})
 
 				It("should not prune for at least prune interval duration", func() {
@@ -223,7 +223,7 @@ var _ = Describe("TTL cache", func() {
 						return true
 					}
 
-					Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+					Expect(quick.Check(readAndWrite, &quick.Config{MaxCount: 20})).NotTo(HaveOccurred())
 				})
 
 				It("should eventually prune the data", func() {
@@ -250,7 +250,7 @@ var _ = Describe("TTL cache", func() {
 						return true
 					}
 
-					Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+					Expect(quick.Check(readAndWrite, &quick.Config{MaxCount: 20})).NotTo(HaveOccurred())
 				})
 
 				It("should not prune if the same key is added again before the interval expires", func() {
@@ -266,7 +266,7 @@ var _ = Describe("TTL cache", func() {
 					table := New(ctx, database, "name", 100*time.Millisecond)
 					Expect(table.Insert(key, &value)).NotTo(HaveOccurred())
 
-					for i := 0; i < 100; i++ {
+					for i := 0; i < 30; i++ {
 						time.Sleep(30 * time.Millisecond)
 
 						size, err := table.Size()
