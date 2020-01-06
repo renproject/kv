@@ -189,7 +189,7 @@ var _ = Describe("TTL cache", func() {
 
 						Eventually(func() error {
 							return table.Get(key, &newValue)
-						}, 2).Should(Equal(db.ErrKeyNotFound))
+						}, time.Second, 100*time.Millisecond).Should(Equal(db.ErrKeyNotFound))
 
 						return true
 					}
