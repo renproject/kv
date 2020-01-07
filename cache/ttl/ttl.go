@@ -29,7 +29,7 @@ func (ttlTable *table) Insert(key string, value interface{}) error {
 		return db.ErrEmptyKey
 	}
 	if err := ttlTable.db.Insert(ttlTable.keyWithPrefix(key), value); err != nil {
-		return err
+		return fmt.Errorf("error inserting ttl data: %v", err)
 	}
 
 	// Delete it from any previous slots in case it exists to prevent the data
@@ -37,11 +37,11 @@ func (ttlTable *table) Insert(key string, value interface{}) error {
 	slot := ttlTable.slotNo(time.Now())
 	pointer, err := ttlTable.prunePointer()
 	if err != nil {
-		return err
+		return fmt.Errorf("error fetching prune pointer: %v", err)
 	}
 	for i := pointer; i < slot; i++ {
 		if err := ttlTable.db.Delete(ttlTable.keyWithSlotPrefix(key, i)); err != nil {
-			return err
+			return fmt.Errorf("error removing key=%v from slot=%d (current slot=%d): %v", key, i, slot, err)
 		}
 	}
 
@@ -118,7 +118,7 @@ func (ttlTable *table) runPruneOnInterval(ctx context.Context) {
 			// TODO: How can we catch the error caused by the underlying db
 			// being closed?
 			if err := ttlTable.prune(pointer); err != nil {
-				log.Printf("failed to prune table: %v", err)
+				log.Println(fmt.Errorf("failed to prune table: %v", err))
 				return
 			}
 		}
