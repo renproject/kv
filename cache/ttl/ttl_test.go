@@ -170,7 +170,7 @@ var _ = Describe("TTL cache", func() {
 			})
 
 			Context("when reading and writing with data-expiration", func() {
-				It("should be able to return error if the data has expired", func() {
+				It("should return an error if the data has expired", func() {
 					database := initializer(codec)
 					defer database.Close()
 
@@ -189,15 +189,15 @@ var _ = Describe("TTL cache", func() {
 
 						Eventually(func() error {
 							return table.Get(key, &newValue)
-						}, 2).Should(Equal(db.ErrKeyNotFound))
+						}, time.Second, 100*time.Millisecond).Should(Equal(db.ErrKeyNotFound))
 
 						return true
 					}
 
-					Expect(quick.Check(test, nil)).NotTo(HaveOccurred())
+					Expect(quick.Check(test, &quick.Config{MaxCount: 20})).NotTo(HaveOccurred())
 				})
 
-				It("should be able to prune the database automatically", func() {
+				It("should not prune for at least prune interval duration", func() {
 					database := initializer(codec)
 					defer database.Close()
 
@@ -208,26 +208,73 @@ var _ = Describe("TTL cache", func() {
 
 						ctx, cancel := context.WithCancel(context.Background())
 						defer cancel()
-						table := New(ctx, database, name, 100*time.Millisecond)
-						newValue := testutil.TestStruct{D: []byte{}}
-						Expect(table.Get(key, &newValue)).Should(Equal(db.ErrKeyNotFound))
+
+						table := New(ctx, database, name, 50*time.Millisecond)
 						Expect(table.Insert(key, &value)).NotTo(HaveOccurred())
-						Expect(table.Get(key, &newValue)).NotTo(HaveOccurred())
-						Expect(reflect.DeepEqual(value, newValue)).Should(BeTrue())
+
+						time.Sleep(40 * time.Millisecond)
+
 						size, err := table.Size()
 						Expect(err).NotTo(HaveOccurred())
 						Expect(size).To(Equal(1))
 
-						Eventually(func() int {
-							size, err = table.Size()
-							Expect(err).NotTo(HaveOccurred())
-							return size
-						}, 2).Should(Equal(0))
+						Expect(table.Delete(key)).NotTo(HaveOccurred())
 
 						return true
 					}
 
-					Expect(quick.Check(readAndWrite, nil)).NotTo(HaveOccurred())
+					Expect(quick.Check(readAndWrite, &quick.Config{MaxCount: 20})).NotTo(HaveOccurred())
+				})
+
+				It("should eventually prune the data", func() {
+					database := initializer(codec)
+					defer database.Close()
+
+					readAndWrite := func(name, key string, value testutil.TestStruct) bool {
+						if key == "" {
+							return true
+						}
+
+						ctx, cancel := context.WithCancel(context.Background())
+						defer cancel()
+
+						table := New(ctx, database, name, 50*time.Millisecond)
+						Expect(table.Insert(key, &value)).NotTo(HaveOccurred())
+
+						Eventually(func() int {
+							size, err := table.Size()
+							Expect(err).NotTo(HaveOccurred())
+							return size
+						}, time.Second, 50*time.Millisecond).Should(Equal(0))
+
+						return true
+					}
+
+					Expect(quick.Check(readAndWrite, &quick.Config{MaxCount: 20})).NotTo(HaveOccurred())
+				})
+
+				It("should not prune if the same key is added again before the interval expires", func() {
+					database := initializer(codec)
+					defer database.Close()
+
+					key := "key"
+					value := testutil.RandomTestStruct()
+
+					ctx, cancel := context.WithCancel(context.Background())
+					defer cancel()
+
+					table := New(ctx, database, "name", 100*time.Millisecond)
+					Expect(table.Insert(key, &value)).NotTo(HaveOccurred())
+
+					for i := 0; i < 30; i++ {
+						time.Sleep(30 * time.Millisecond)
+
+						size, err := table.Size()
+						Expect(err).ToNot(HaveOccurred())
+						Expect(size).To(Equal(1))
+
+						Expect(table.Insert(key, &value)).NotTo(HaveOccurred())
+					}
 				})
 			})
 		}

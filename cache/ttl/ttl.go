@@ -32,8 +32,20 @@ func (ttlTable *table) Insert(key string, value interface{}) error {
 		return fmt.Errorf("error inserting ttl data: %v", err)
 	}
 
-	// Insert the current timestamp for future pruning.
+	// Delete it from any previous slots in case it exists to prevent the data
+	// from being pruned in advance.
 	slot := ttlTable.slotNo(time.Now())
+	pointer, err := ttlTable.prunePointer()
+	if err != nil {
+		return fmt.Errorf("error fetching prune pointer: %v", err)
+	}
+	for i := pointer; i < slot; i++ {
+		if err := ttlTable.db.Delete(ttlTable.keyWithSlotPrefix(key, i)); err != nil {
+			return fmt.Errorf("error removing key=%v from slot=%d (current slot=%d): %v", key, i, slot, err)
+		}
+	}
+
+	// Insert the current timestamp for future pruning.
 	return ttlTable.db.Insert(ttlTable.keyWithSlotPrefix(key, slot), []byte{})
 }
 
@@ -103,9 +115,10 @@ func (ttlTable *table) runPruneOnInterval(ctx context.Context) {
 				panic(fmt.Sprintf("cannot read prune pointer, err = %v", err))
 			}
 
-			// todo : how can we catch if the error is caused by the underlying db been closed.
+			// TODO: How can we catch the error caused by the underlying db
+			// being closed?
 			if err := ttlTable.prune(pointer); err != nil {
-				log.Printf("prune failed, err = %v", err)
+				log.Println(fmt.Errorf("failed to prune table: %v", err))
 				return
 			}
 		}
@@ -113,7 +126,9 @@ func (ttlTable *table) runPruneOnInterval(ctx context.Context) {
 }
 
 func (ttlTable *table) prune(pointer int64) error {
-	newSlotToDelete := ttlTable.slotNo(time.Now().Add(-ttlTable.pruneInterval))
+	// Note: we subtract 1 to ensure pruning is only done on data that has been
+	// around for _at least_ the interval instead of _at most_.
+	newSlotToDelete := ttlTable.slotNo(time.Now().Add(-ttlTable.pruneInterval)) - 1
 	for slot := pointer + 1; slot <= newSlotToDelete; slot++ {
 		if err := ttlTable.pruneTimeSlot(slot); err != nil {
 			return err
