@@ -1,7 +1,7 @@
 # `📦 kv`
 
 [![GoDoc](https://godoc.org/github.com/renproject/kv?status.svg)](https://godoc.org/github.com/renproject/kv)
-[![CircleCI](https://circleci.com/gh/renproject/kv/tree/master.svg?style=shield)](https://circleci.com/gh/renproject/kv/tree/master)
+![](https://github.com/renproject/kv/workflows/go/badge.svg)
 ![Go Report](https://goreportcard.com/badge/github.com/renproject/kv)
 [![Coverage Status](https://coveralls.io/repos/github/renproject/kv/badge.svg?branch=master)](https://coveralls.io/github/renproject/kv?branch=master)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
@@ -25,7 +25,7 @@ go get github.com/renproject/kv
 Requirements
 ------------
 
-Requires `go1.6` or newer.
+Requires `go1.11` or newer.
 
 Usage
 -----
