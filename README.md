@@ -25,7 +25,7 @@ go get github.com/renproject/kv
 Requirements
 ------------
 
-Requires `go1.12` or newer.
+Requires `go1.11` or newer.
 
 Usage
 -----
